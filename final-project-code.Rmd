@@ -1,6 +1,6 @@
 ---
 title: "Final Project Code"
-author: "Kunwu Lyu"
+author: "Kunwu Lyu and Evan Hart"
 date: "`r Sys.Date()`"
 output: pdf_document
 ---
