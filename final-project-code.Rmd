@@ -5,7 +5,7 @@ date: "`r Sys.Date()`"
 output: pdf_document
 ---
 
-```{r setup, include=FALSE}
+```{r setup, include=FALSE, cache=TRUE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(lme4)
@@ -37,10 +37,48 @@ full_data <- full_data %>%
 
 ### Kunwu's section
 
-```{r}
-control_clmm <- clmm(limit ~ q76 + , data = full_data)
+```{r cache=TRUE}
+full_data <- full_data %>% 
+  mutate(age = as.numeric(q76) - mean(as.numeric(76)),
+         gender = if_else(q77 == 0, "M", "F"),
+         race = case_when(
+           !is.na(q79_1) ~ "Native",
+           !is.na(q79_2) ~ "Black",
+           !is.na(q79_3) ~ "Asian",
+           !is.na(q79_4) ~ "White",
+           !is.na(q79_a) ~ "Other"
+         ),
+         edu = as.numeric(q80),
+         location = nemslocationindicator,
+         city = q1)
+control_clmm <- clmm(limit ~ 1 + age + gender + race + edu + city + caff + (1 | location) + (1 | round), data = full_data)
+
+summary(control_clmm)
 ```
 
+
+
+```{r Backward and Forward Selection, cache=TRUE, message=FALSE, warning=FALSE}
+set.seed(67393937)
+
+upper_model <- clm(limit ~ .,
+                 data = full_data)
+lower_model <- clm(limit ~ 1, data = full_data)
+
+# #backward selection
+# backwardSelectModel <- stepAIC(upper_model, scope = list(lower = lower_model, 
+#                                                          upper = upper_model),
+#                                direction = "backward")
+# summary(backwardSelectModel)
+
+#forward selection
+forwardSelectModel <- stepAIC(lower_model, scope = list(lower = lower_model, 
+                                                         upper = upper_model),
+                               direction = "forward")
+summary(forwardSelectModel)
+
+
+```
 
 
 
