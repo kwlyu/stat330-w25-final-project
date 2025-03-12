@@ -34,3 +34,16 @@ full_data <- full_data %>%
   mutate(limit = fct_relevel(limit, "Never", "Seldom", "Sometimes", "Often", "Always"))
 ```
 
+
+### Kunwu's section
+
+```{r}
+control_clmm <- clmm(limit ~ q76 + , data = full_data)
+```
+
+
+
+
+
+### Evan's section
+
