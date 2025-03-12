@@ -9,16 +9,28 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(lme4)
+library(ordinal)
 library(VGAM)
 ```
 
 ## Data Wrangling
 
 ```{r}
-math <- read_delim("student-mat.csv", delim = ";")
-portuguese <- read_delim("student-por.csv", delim = ";")
+survey <- read_tsv("data/ICPSR_37143/DS0001/37143-0001-Data.tsv")
+receipt <- read_tsv("data/ICPSR_37143/DS0002/37143-0002-Data.tsv")
+fast_food <- read_tsv("data/ICPSR_37143/DS0003/37143-0003-Data.tsv")
+grocery <- read_tsv("data/ICPSR_37143/DS0004/37143-0004-Data.tsv")
+recall <- read_tsv("data/ICPSR_37143/DS0005/37143-0005-Data.tsv")
 
-full_join(math, portuguese,
-          by=c("school","sex","age","address","famsize","Pstatus","Medu","Fedu","Mjob","Fjob","reason","nursery","internet")) -> full_dat
+full_data <- survey %>%
+  full_join(receipt, relationship = "many-to-many") %>%  
+  full_join(fast_food, relationship = "many-to-many") %>%
+  full_join(grocery, relationship = "many-to-many") %>%
+  full_join(recall, relationship = "many-to-many") %>% 
+  janitor::clean_names()
+
+full_data <- full_data %>% 
+  mutate(limit = as.factor(q75)) %>% 
+  mutate(limit = fct_relevel(limit, "Never", "Seldom", "Sometimes", "Often", "Always"))
 ```
 

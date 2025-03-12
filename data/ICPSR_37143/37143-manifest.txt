@@ -1,0 +1,171 @@
+File Manifest for ICPSR 37143
+
+Elbel, Brian. Impact of the NYC Sugar Sweetened Beverage Policy on Calories
+Purchased and Consumed: Data on Fast Food Purchases, Dietary Patterns, and
+Retail Beverage Environments in New York City, Newark, and Jersey City,
+2013-2014. ICPSR37143-v1. Ann Arbor, MI: Inter-university Consortium for
+Political and Social Research [distributor], 2018-10-15.
+http://doi.org/10.3886/ICPSR37143.v1
+
+
+Study-level Documentation
+
+    Filename                            Record  Record    Var.    Date        MD5
+                                        Length  Count     Count   Updated     Checksum
+
+    37143-descriptioncitation.pdf       -       -         -       2018-10-15  -
+
+    37143-related_literature.txt        -       -         -       daily       -
+
+    37143-manifest.txt                  -       -         -       daily       -
+
+
+DS0001 Point-of-Purchase Survey Data
+
+    Filename                            Record  Record    Var.    Date        MD5
+                                        Length  Count     Count   Updated     Checksum
+
+    37143-0001-Codebook-ICPSR.pdf       -       -         -       2018-10-15  3fe8d8c276f30d282b1f706eb8979757
+
+    37143-0001-Codebook.pdf             -       -         -       2018-10-15  8540071c9c7136e6b27fd7410ea3e26f
+
+    37143-0001-Data.dta                 -       12,227    184     2018-10-15  92e0b459de631f405c6cc8f197fe9e19
+
+    37143-0001-Data.rda                 -       12,227    184     2018-10-15  f7ac1ea614f269f8941438ff5afcd829
+
+    37143-0001-Data.sav                 -       12,227    184     2018-10-15  23abca84ca5652176f2c92a8d63d18a2
+
+    37143-0001-Data.stc                 -       12,227    184     2018-10-15  9e7028146e22a40911be024c1325be16
+
+    37143-0001-Data.tsv                 -       12,227    184     2018-10-15  f26faa93b874a8ae5eb2f4d77b2af585
+
+    37143-0001-Data.txt                 1987    12,227    184     2018-10-15  1df47f03c764e7b59d0816784b5a7e17
+
+    37143-0001-Setup.dct                -       -         -       2018-10-15  96883cff8e92ccd3860ad495820609e6
+
+    37143-0001-Setup.do                 -       -         -       2018-10-15  4d9fbecd22b3d44641297a84a5c1836c
+
+    37143-0001-Setup.sas                -       -         -       2018-10-15  464412e0cb3e4ec2142a1bcd9914b49c
+
+    37143-0001-Setup.sps                -       -         -       2018-10-15  9dd828dd2d9bfa44ed7041dbb7e83791
+
+
+DS0002 Point-of-Purchase Receipt Data
+
+    Filename                            Record  Record    Var.    Date        MD5
+                                        Length  Count     Count   Updated     Checksum
+
+    37143-0002-Codebook-ICPSR.pdf       -       -         -       2018-10-15  6f136b311b7f588de0c1114f626209ea
+
+    37143-0002-Codebook.pdf             -       -         -       2018-10-15  36ec744cc2a90de0e40b17178bef1b44
+
+    37143-0002-Data.dta                 -       29,099    29      2018-10-15  4e0ebd47cee7dcd0cf96b34ff545eea9
+
+    37143-0002-Data.rda                 -       29,099    29      2018-10-15  571389df14ceb1053930c217d6ef525f
+
+    37143-0002-Data.sav                 -       29,099    29      2018-10-15  f8710a91aa429e7c5adc58e31b0abadd
+
+    37143-0002-Data.stc                 -       29,099    29      2018-10-15  4b4e7a790e4dd45faeaaa6e379e368b5
+
+    37143-0002-Data.tsv                 -       29,099    29      2018-10-15  0add9b34387e032f331866d49bee2544
+
+    37143-0002-Data.txt                 243     29,099    29      2018-10-15  34eddcd44e6cbb73a8aef9b03ac9c39a
+
+    37143-0002-Setup.dct                -       -         -       2018-10-15  2c1cc4656273515a46fb867e748f14d3
+
+    37143-0002-Setup.do                 -       -         -       2018-10-15  efa675a328538157eaa580966074e043
+
+    37143-0002-Setup.sas                -       -         -       2018-10-15  f3a286bae065971acf783cbce0fb8f3e
+
+    37143-0002-Setup.sps                -       -         -       2018-10-15  acd796274d715d2e91223103a2ac4aa5
+
+
+DS0003 Fast Food and Convenience Store NEMS Data
+
+    Filename                            Record  Record    Var.    Date        MD5
+                                        Length  Count     Count   Updated     Checksum
+
+    37143-0003-Codebook-ICPSR.pdf       -       -         -       2018-10-15  1a976861abddedfb732bc038e36eb643
+
+    37143-0003-Codebook-MULTI.pdf       -       -         -       2018-10-15  61e08bad3ec2fc84270c83749cabda2f
+
+    37143-0003-Data.dta                 -       319       1000    2018-10-15  f19a1562b2186ea93a230de6536265af
+
+    37143-0003-Data.rda                 -       319       1000    2018-10-15  755d01f139708225a639b1240873325b
+
+    37143-0003-Data.sav                 -       319       1000    2018-10-15  b1d183a4f401b409954c011acb13b8c9
+
+    37143-0003-Data.stc                 -       319       1000    2018-10-15  cf3a03a7a367a1cf749e5bdd66ca1ab7
+
+    37143-0003-Data.tsv                 -       319       1000    2018-10-15  35f364e650eb6249728e60d8715fe508
+
+    37143-0003-Data.txt                 1468    319       1000    2018-10-15  3c80d2e52fae3ab383bc25cc310ab0b8
+
+    37143-0003-Setup.dct                -       -         -       2018-10-15  bc5d4fa6494dd8498da149a057b1a20b
+
+    37143-0003-Setup.do                 -       -         -       2018-10-15  52b9440230175569dd9b313f9f7d55b6
+
+    37143-0003-Setup.sas                -       -         -       2018-10-15  c5a920942f316cba9cf7e2c58e1b6035
+
+    37143-0003-Setup.sps                -       -         -       2018-10-15  0d0b73f13623f5eb19014359ae851ee8
+
+
+DS0004 Grocery Store NEMS Data
+
+    Filename                            Record  Record    Var.    Date        MD5
+                                        Length  Count     Count   Updated     Checksum
+
+    37143-0004-Codebook-ICPSR.pdf       -       -         -       2018-10-15  166aee5ffd37af15be66a3ca50e2e14e
+
+    37143-0004-Codebook-MULTI.pdf       -       -         -       2018-10-15  61e08bad3ec2fc84270c83749cabda2f
+
+    37143-0004-Data.dta                 -       156       147     2018-10-15  4fdf812ca8da00aa4713b5d999487f6f
+
+    37143-0004-Data.rda                 -       156       147     2018-10-15  f072eadb0a61560c8e3d5ad37420dc13
+
+    37143-0004-Data.sav                 -       156       147     2018-10-15  3becce4ff2b6189bee89236004d477a7
+
+    37143-0004-Data.stc                 -       156       147     2018-10-15  076204d148dbf07b8fbf5d1de51dcd1b
+
+    37143-0004-Data.tsv                 -       156       147     2018-10-15  8676ccf1dedb40832c9a440f037c413d
+
+    37143-0004-Data.txt                 2130    156       147     2018-10-15  e5a6d9157d52dff277c30c7cbd715e80
+
+    37143-0004-Setup.dct                -       -         -       2018-10-15  d72e28242a3aaaa13d5195f985f1b810
+
+    37143-0004-Setup.do                 -       -         -       2018-10-15  4976633c8403f0ada3cf65826947881b
+
+    37143-0004-Setup.sas                -       -         -       2018-10-15  75ac00567e6137a2d32f3326614b5469
+
+    37143-0004-Setup.sps                -       -         -       2018-10-15  f89ad914bfdcd794e0cf5954ad5f9fea
+
+
+DS0005 Dietary Recall Data
+
+    Filename                            Record  Record    Var.    Date        MD5
+                                        Length  Count     Count   Updated     Checksum
+
+    37143-0005-Codebook-ICPSR.pdf       -       -         -       2018-10-15  f6609648d321afdb8923de799d991fc1
+
+    37143-0005-Codebook.pdf             -       -         -       2018-10-15  95c17f1afc4f08f0430bb94af980b806
+
+    37143-0005-Data.dta                 -       39,002    117     2018-10-15  4b92a5f7ecdbbcaa2cabc6c3021dfd88
+
+    37143-0005-Data.rda                 -       39,002    117     2018-10-15  ffd0ca1f85c61cea7a867e9f5b2083da
+
+    37143-0005-Data.sav                 -       39,002    117     2018-10-15  8cdb95595c9d530e9f1c71d6cc38b44b
+
+    37143-0005-Data.stc                 -       39,002    117     2018-10-15  57a78a861dc5608eff73a894d250793c
+
+    37143-0005-Data.tsv                 -       39,002    117     2018-10-15  c314eab800ff68974fb63813276e7b3b
+
+    37143-0005-Data.txt                 1758    39,002    117     2018-10-15  f56a6b81a8abab10dbfd63ea71ed790b
+
+    37143-0005-Setup.dct                -       -         -       2018-10-15  039c3f82e1822a925e43dc12f28c90a4
+
+    37143-0005-Setup.do                 -       -         -       2018-10-15  c7dad6bbb9436f590157bbf8a5669b58
+
+    37143-0005-Setup.sas                -       -         -       2018-10-15  3d645552df2dacdb7824ba03cb4bbdbd
+
+    37143-0005-Setup.sps                -       -         -       2018-10-15  03dd346cc6595b9c68233066227ffc16
+
