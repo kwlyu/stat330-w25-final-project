@@ -11,6 +11,8 @@ library(tidyverse)
 library(lme4)
 library(ordinal)
 library(VGAM)
+library(optimx)
+library(car)
 ```
 
 ## Data Wrangling
@@ -39,6 +41,7 @@ full_data <- full_data %>%
 
 ```{r cache=TRUE}
 full_data <- full_data %>% 
+  mutate(limit = ordered(q75, levels = c("Never", "Seldom", "Sometimes", "Often", "Always"))) %>% 
   mutate(age = as.numeric(q76) - mean(as.numeric(76)),
          gender = if_else(q77 == 0, "M", "F"),
          race = case_when(
@@ -51,10 +54,52 @@ full_data <- full_data %>%
          edu = as.numeric(q80),
          location = nemslocationindicator,
          city = q1)
-control_clmm <- clmm(limit ~ 1 + age + gender + race + edu + city + caff + (1 | location) + (1 | round), data = full_data)
 
+control_clm <- clm(limit ~ age + gender + race + edu + city + caff, data = full_data, control = list(
+  maxIter = 10000, 
+  maxLineIter = 2000, 
+  maxModIter = 2000, 
+  method = "Newton", 
+  trace = 1))
+control_clm <- clm(limit ~ age + gender + race + edu + city + caff, data = full_data, control = list(
+  method = "ucminf",
+  stepmax = 1,
+  grad = "central",
+  maxeval = 500000,
+  gradstep = c(1e-10, 1e-12),
+  trace = 1))
+control_clm <- clm(limit ~ age + gender + race + edu + city + caff, data = full_data, control = list(
+  method = "nlminb",
+  eval.max = 2000,
+  iter.max = 1500,
+  abs.tol = 1e-20,
+  trace = 1))
+control_clm <- clm(limit ~ age + gender + race + edu + city + caff, data = full_data, control = list(
+  method = "optim",
+  tmax = 100,
+  maxit = 100000,
+  type = 1,
+  ndeps = 1e-10,
+  REPORT = 1,
+  trace = 1))
+control_vglm <- vglm(limit ~ age + gender + race + edu + city + caff, 
+                     data = full_data, family = cumulative(parallel = TRUE))
+control_clmm <- clmm(limit ~ 1 + age + gender + race + edu + city + caff + (1 | location) + (1 | round), control = list(trace = 1),
+                     data = full_data, link = "logit")
+
+summary(control_clm)
+summary(control_vglm)
+coef(control_vglm, matrix = T)
 summary(control_clmm)
+coef(control_clmm, matrix = T)
 ```
+
+
+
+
+
+
+
 
 
 
