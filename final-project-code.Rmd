@@ -156,13 +156,7 @@ reduced_data <- full_data[, which(names(full_data) %in% c("limit","age", "gender
 ```{r}
 ggplot(data = na.omit(reduced_data), aes(x = age , y = limit)) + 
   geom_boxplot() +
-  labs(x = "age", y = "limit")
-
-ggplot(data = na.omit(reduced_data), aes(x = race, fill = limit)) +
-  geom_bar(position = "fill") + 
-  scale_y_continuous(labels = scales::percent) + 
-  labs(x = "Race", y = "Percentage", fill = "Limit") +
-  theme_minimal()
+  labs(x = "age", y = "Limit")
 
 ggplot(data = na.omit(reduced_data), aes(x = num_kids, fill = limit)) +
   geom_bar(position = "fill") + 
@@ -170,11 +164,28 @@ ggplot(data = na.omit(reduced_data), aes(x = num_kids, fill = limit)) +
   labs(x = "Child Count", y = "Percentage", fill = "Limit") +
   theme_minimal()
 
+ggplot(data = na.omit(reduced_data), aes(x = race, fill = limit)) +
+  geom_bar(position = "fill") + 
+  scale_y_continuous(labels = scales::percent) + 
+  labs(x = "Race", y = "Percentage", fill = "Limit") +
+  theme_minimal()
+
+
 ggplot(data = na.omit(reduced_data), aes(x = edu, fill = limit)) +
   geom_bar(position = "fill") + 
   scale_y_continuous(labels = scales::percent) + 
   labs(x = "Education", y = "Percentage", fill = "Limit") +
   theme_minimal()
+
+ggplot(data = na.omit(reduced_data), aes(x = city, fill = limit)) +
+  geom_bar(position = "fill") + 
+  scale_y_continuous(labels = scales::percent) + 
+  labs(x = "City", y = "Percentage", fill = "Limit") +
+  theme_minimal()
+
+ggplot(data = na.omit(reduced_data), aes(x = caff , y = limit)) + 
+  geom_boxplot() +
+  labs(x = "Caffeine", y = "Limit")
 ```
 
 
