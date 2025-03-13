@@ -150,8 +150,32 @@ names(full_data)[which(names(full_data) == "q44")] <- "num_kids"
 
 reduced_data <- full_data[, which(names(full_data) %in% c("limit","age", "gender", "race", "edu", "city", "caff", "location", "round", "nsigns_ssb", "num_kids"))]
 
+
 ```
 
+```{r}
+ggplot(data = na.omit(reduced_data), aes(x = age , y = limit)) + 
+  geom_boxplot() +
+  labs(x = "age", y = "limit")
+
+ggplot(data = na.omit(reduced_data), aes(x = race, fill = limit)) +
+  geom_bar(position = "fill") + 
+  scale_y_continuous(labels = scales::percent) + 
+  labs(x = "Race", y = "Percentage", fill = "Limit") +
+  theme_minimal()
+
+ggplot(data = na.omit(reduced_data), aes(x = num_kids, fill = limit)) +
+  geom_bar(position = "fill") + 
+  scale_y_continuous(labels = scales::percent) + 
+  labs(x = "Child Count", y = "Percentage", fill = "Limit") +
+  theme_minimal()
+
+ggplot(data = na.omit(reduced_data), aes(x = edu, fill = limit)) +
+  geom_bar(position = "fill") + 
+  scale_y_continuous(labels = scales::percent) + 
+  labs(x = "Education", y = "Percentage", fill = "Limit") +
+  theme_minimal()
+```
 
 
 
