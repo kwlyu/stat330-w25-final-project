@@ -102,7 +102,7 @@ diet_unsweetened_cols <- data_names[str_detect(data_names, pattern = "diet|unswe
 full_data_filtered <- full_data %>% 
   mutate(diet = if_else(rowSums(select(., all_of(diet_unsweetened_cols)) %>% 
                                mutate(across(everything(), as.numeric)), na.rm = TRUE) >= 1, 1, 0))
-
+## fine
 ```
 
 
