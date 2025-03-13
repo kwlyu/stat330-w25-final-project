@@ -92,6 +92,11 @@ summary(control_vglm)
 coef(control_vglm, matrix = T)
 summary(control_clmm)
 coef(control_clmm, matrix = T)
+
+colnames(full_data) -> data_names
+str_detect(data_names, pattern = "diet|unsweetened")
+full_data_filtered <- full_data %>% 
+  mutate(diet = if_else(full_data[,]))
 ```
 
 
