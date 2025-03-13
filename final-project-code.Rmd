@@ -34,12 +34,7 @@ full_data <- survey %>%
 full_data <- full_data %>% 
   mutate(limit = as.factor(q75)) %>% 
   mutate(limit = fct_relevel(limit, "Never", "Seldom", "Sometimes", "Often", "Always"))
-```
 
-
-### Kunwu's section
-
-```{r cache=TRUE}
 full_data <- full_data %>% 
   mutate(limit = ordered(q75, levels = c("Never", "Seldom", "Sometimes", "Often", "Always"))) %>% 
   mutate(age = as.numeric(q76) - mean(as.numeric(76)),
@@ -55,6 +50,16 @@ full_data <- full_data %>%
          location = nemslocationindicator,
          city = q1)
 
+
+names(full_data)[which(names(full_data) == "q44")] <- "num_kids"
+
+reduced_data <- full_data[, which(names(full_data) %in% c("limit","age", "gender", "race", "edu", "city", "caff", "location", "round", "nsigns_ssb", "num_kids"))]
+```
+
+
+### Kunwu's section
+
+```{r cache=TRUE}
 control_clm <- clm(limit ~ age + gender + race + edu + city + caff, data = full_data, control = list(
   maxIter = 10000, 
   maxLineIter = 2000, 
@@ -134,4 +139,20 @@ summary(forwardSelectModel)
 
 
 ### Evan's section
+
+```{r}
+# EDA vars: diet/unsweetened
+# nsigns_ssb is advertisement count for sugary beverages
+# q44 is mutated to num_kids
+
+names(full_data)[which(names(full_data) == "q44")] <- "num_kids"
+
+reduced_data <- full_data[, which(names(full_data) %in% c("limit","age", "gender", "race", "edu", "city", "caff", "location", "round", "nsigns_ssb", "num_kids"))]
+
+```
+
+
+
+
+
 
