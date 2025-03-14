@@ -152,40 +152,87 @@ reduced_data <- full_data[, which(names(full_data) %in% c("limit","age", "gender
 ```
 
 ```{r}
+# Single variables w/ limit
+
+# Age
 ggplot(data = na.omit(reduced_data), aes(x = age , y = limit)) + 
   geom_boxplot() +
   labs(x = "age", y = "Limit")
 
+# Age faceted by gender
+ggplot(data = na.omit(reduced_data), aes(x = age , y = limit)) + 
+  geom_boxplot() +
+  facet_wrap(~gender) +
+  labs(x = "age", y = "Limit")
+
+# Child count
 ggplot(data = na.omit(reduced_data), aes(x = num_kids, fill = limit)) +
   geom_bar(position = "fill") + 
   scale_y_continuous(labels = scales::percent) + 
   labs(x = "Child Count", y = "Percentage", fill = "Limit") +
   theme_minimal()
 
+
+ggplot(data = na.omit(reduced_data), aes(x = num_kids, fill = limit)) +
+  geom_bar(position = "fill") + 
+  scale_y_continuous(labels = scales::percent) + 
+  labs(x = "Child Count", y = "Percentage", fill = "Limit") +
+  facet_wrap(~gender) +
+  theme_minimal()
+
+
+# Race
 ggplot(data = na.omit(reduced_data), aes(x = race, fill = limit)) +
   geom_bar(position = "fill") + 
   scale_y_continuous(labels = scales::percent) + 
   labs(x = "Race", y = "Percentage", fill = "Limit") +
   theme_minimal()
 
-
+# Education
 ggplot(data = na.omit(reduced_data), aes(x = edu, fill = limit)) +
   geom_bar(position = "fill") + 
   scale_y_continuous(labels = scales::percent) + 
   labs(x = "Education", y = "Percentage", fill = "Limit") +
   theme_minimal()
 
+# City
 ggplot(data = na.omit(reduced_data), aes(x = city, fill = limit)) +
   geom_bar(position = "fill") + 
   scale_y_continuous(labels = scales::percent) + 
   labs(x = "City", y = "Percentage", fill = "Limit") +
   theme_minimal()
 
-ggplot(data = na.omit(reduced_data), aes(x = caff , y = limit)) + 
+# Caffeine
+ggplot(data = na.omit(reduced_data) %>% filter(caff > 0), aes(x = log(caff + 1) , y = limit)) + 
   geom_boxplot() +
   labs(x = "Caffeine", y = "Limit")
+
+# Survey round
+ggplot(data = na.omit(reduced_data), aes(x = round, fill = limit)) +
+  geom_bar(position = "fill") + 
+  scale_y_continuous(labels = scales::percent) + 
+  labs(x = "Round", y = "Percentage", fill = "Limit") +
+  facet_wrip(~city) +
+  theme_minimal()
+
+# Advertisement count
+ggplot(data = na.omit(reduced_data), aes(y = nsigns_ssb, x = limit)) +
+  geom_boxplot() + 
+  labs(y = "Advertisement Count", x = "Limit") +
+  theme_minimal()
 ```
 
+
+```{r}
+# Crossed Effect?
+stores_r1 <- unique(reduced_data[which(reduced_data$round == 1),]$location)
+stores_r2 <- unique(reduced_data[which(reduced_data$round == 2),]$location)
+stores_r3 <- unique(reduced_data[which(reduced_data$round == 3),]$location)
+
+length(intersect(stores_r1, stores_r2))
+length(intersect(stores_r1, stores_r3))
+length(intersect(stores_r3, stores_r2))
+```
 
 
 
