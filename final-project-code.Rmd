@@ -31,6 +31,8 @@ full_data <- survey %>%
   full_join(recall, relationship = "many-to-many") %>% 
   janitor::clean_names()
 
+diet_unsweetened_cols <- colnames(full_data)[str_detect(colnames(full_data), "diet|unsweetened")]
+
 full_data <- full_data %>% 
   mutate(limit = ordered(q75, levels = c("Never", "Seldom", "Sometimes", "Often", "Always"))) %>% 
   mutate(age = as.numeric(q76) - mean(as.numeric(76)),
@@ -45,14 +47,19 @@ full_data <- full_data %>%
          edu = as.numeric(q80),
          location = nemslocationindicator,
          city = q1,
-         num_kids = q44)
-
-diet_unsweetened_cols <- data_names[str_detect(colnames(full_data), pattern = "diet|unsweetened")]
-reduced_data <- full_data %>% 
+         num_kids = q44,
+         surveydate = dmy(surveydate)) %>%
+  mutate(days_since_ban = as.numeric(interval(as.Date("2013-03-12"), surveydate) / days(1))) %>% 
   mutate(diet = if_else(rowSums(select(., all_of(diet_unsweetened_cols)) %>% 
-                               mutate(across(everything(), as.numeric)), na.rm = TRUE) >= 1, 1, 0)) %>% 
-  select(c("limit","age", "gender", "race", "edu", "city", "caff", "location", "round", "nsigns_ssb", "num_kids", "diet")) %>% 
-  drop_na()
+                               mutate(across(everything(), as.numeric)), na.rm = TRUE) >= 1, 1, 0))
+
+
+reduced_data <- full_data %>% 
+  select(c("receiptid", "person_id", "limit","age", "gender", "race", "edu", "city", "caff", "location", "round", "nsigns_ssb", "num_kids", "diet", "surveydate", "days_since_ban")) %>%
+  group_by(receiptid) %>% 
+  mutate(caff = mean(caff, na.rm = T)) %>% 
+  drop_na() %>% 
+  distinct()
 
 write_csv(reduced_data, "dietControl.csv")
 ```
@@ -60,7 +67,7 @@ write_csv(reduced_data, "dietControl.csv")
 
 ### Kunwu's section
 
-```{r cache=TRUE}
+```{r Optimization Methods, cache=TRUE, eval=FALSE}
 control_clm <- clm(limit ~ age + gender + race + edu + city + caff, data = full_data, control = list(
   maxIter = 10000, 
   maxLineIter = 2000, 
@@ -106,34 +113,46 @@ coef(control_clmm, matrix = T)
 
 
 
+```{r}
+control_clmm_full <- clmm(limit ~ 1 + age + gender + race + edu + caff + nsigns_ssb + num_kids + diet + days_since_ban + (1 | location) + (1 | round), 
+                          control = list(method = "nlminb",
+                                         useMatrix = T,
+                                         maxIter = 200, 
+                                         gradTol = 1e-4, 
+                                         maxLineIter = 200,
+                                         trace = 1),
+                     data = reduced_data, link = "logit")
+
+summary(control_clmm_full)
+
+control_clmm_red <- clmm(limit ~ 1 + age + gender + race + edu + caff + nsigns_ssb + num_kids + (1 | location) + (1 | round), control = list(trace = 1),
+                     data = reduced_data, link = "logit")
+anova(control_clmm_red, control_clmm_full)
 
 
+control_clmm_loc <- clmm(limit ~ 1 + age + gender + race + edu + caff + nsigns_ssb + num_kids + (1 | location), control = list(trace = 1),
+                     data = reduced_data, link = "logit")
 
+lrt_obs <- as.numeric(2*(logLik(control_clmm_red) - logLik(control_clmm_loc)))
+.5*(1 - pchisq(lrt_obs, 0)) + .5*(1 - pchisq(lrt_obs, 1))
 
+control_clmm_rnd <- clmm(limit ~ 1 + age + gender + race + edu + caff + nsigns_ssb + num_kids + (1 | round), control = list(trace = 1),
+                     data = reduced_data, link = "logit")
+lrt_obs <- as.numeric(2*(logLik(control_clmm_red) - logLik(control_clmm_rnd)))
+.5*(1 - pchisq(lrt_obs, 0)) + .5*(1 - pchisq(lrt_obs, 1))
 
+multi_round_locations <- reduced_data %>%
+  group_by(receiptid) %>% 
+  summarize(n_rounds = n_distinct(person_id)) %>% 
+  filter(n_rounds > 1) %>%
+  pull(receiptid)
 
-```{r Backward and Forward Selection, cache=TRUE, message=FALSE, warning=FALSE}
-set.seed(67393937)
+multi_round_locations
 
-upper_model <- clm(limit ~ .,
-                 data = full_data)
-lower_model <- clm(limit ~ 1, data = full_data)
-
-# #backward selection
-# backwardSelectModel <- stepAIC(upper_model, scope = list(lower = lower_model, 
-#                                                          upper = upper_model),
-#                                direction = "backward")
-# summary(backwardSelectModel)
-
-#forward selection
-forwardSelectModel <- stepAIC(lower_model, scope = list(lower = lower_model, 
-                                                         upper = upper_model),
-                               direction = "forward")
-summary(forwardSelectModel)
-
-
+reduced_data %>%
+  filter(receiptid %in% multi_round_locations) %>%
+  count(receiptid, person_id)
 ```
-
 
 
 
