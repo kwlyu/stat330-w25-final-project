@@ -11,8 +11,8 @@ library(tidyverse)
 library(lme4)
 library(ordinal)
 library(VGAM)
+library(stringr)
 library(optimx)
-library(MASS)
 library(car)
 ```
 
@@ -36,7 +36,7 @@ full_data <- survey %>%
   full_join(grocery, relationship = "many-to-many") %>%
   full_join(recall, relationship = "many-to-many") 
 
-diet_unsweetened_cols <- survey %>%
+diet_unsweetened_cols <- as.data.frame(survey) %>%
   select(where(~ any(str_detect(as.character(.), "diet|unsweetened"), na.rm = TRUE))) %>%
   colnames()
 
@@ -65,11 +65,25 @@ full_data <- full_data %>%
 
 
 reduced_data <- full_data %>% 
-  select(c("receiptid", "person_id", "limit","age", "gender", "race", "edu", "city", "caff", "location", "round", "nsigns_ssb", "num_kids", "diet", "surveydate", "days_since_ban", "")) %>%
+  select(c("receiptid", "person_id", "limit","age", "gender", "race", "edu", "city", "caff", "location", "round", "nsigns_ssb", "num_kids", "diet", "surveydate", "days_since_ban")) %>%
   group_by(receiptid) %>% 
   mutate(caff = mean(caff, na.rm = T)) %>% 
   drop_na() %>% 
-  distinct()
+  distinct() %>% 
+  mutate(receiptid = as.factor(receiptid),
+         person_id = as.factor(person_id),
+         location = as.factor(location),
+         round = as.factor(location),
+         edu = case_when(
+           edu == 1 ~ "Less than High School",
+           edu == 2 ~ "Some High School",
+           edu == 3 ~ "High School",
+           edu == 4 ~ "Some College",
+           edu == 5 ~ "Associates Degree",
+           edu == 6 ~ "College Degree",
+           edu == 7 ~ "Graduate Degree"
+         ),
+         diet = if_else(diet == 0, "No", "Yes"))
 
 write_csv(reduced_data, "dietControl.csv")
 ```
@@ -123,6 +137,7 @@ coef(control_clmm, matrix = T)
 
 ```{r Backward and Forward Selection, eval=FALSE, cache=TRUE, message=FALSE, warning=FALSE}
 set.seed(67393937)
+library(MASS)
 
 upper_model <- clm(limit ~ (age + gender + race + edu + caff + nsigns_ssb + num_kids + diet + days_since_ban)^2,
                      data = reduced_data, link = "logit")
@@ -155,7 +170,7 @@ control_clmm_full <- clmm(limit ~ 1 + age + gender + race + edu + caff + nsigns_
 
 summary(control_clmm_full)
 
-control_clmm_red <- clmm(limit ~ 1 + age + gender + race + edu + caff + nsigns_ssb + num_kids + (1 | location) + (1 | round), control = list(trace = 1),
+control_clmm_red <- clmm(limit ~ 1 + age + gender + edu + caff + nsigns_ssb + num_kids + (1 | location) + (1 | round), control = list(trace = 1),
                      data = reduced_data, link = "logit")
 anova(control_clmm_red, control_clmm_full)
 
