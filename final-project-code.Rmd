@@ -12,26 +12,33 @@ library(lme4)
 library(ordinal)
 library(VGAM)
 library(optimx)
+library(MASS)
 library(car)
 ```
 
 ## Data Wrangling
 
 ```{r}
-survey <- read_tsv("data/ICPSR_37143/DS0001/37143-0001-Data.tsv")
-receipt <- read_tsv("data/ICPSR_37143/DS0002/37143-0002-Data.tsv")
-fast_food <- read_tsv("data/ICPSR_37143/DS0003/37143-0003-Data.tsv")
-grocery <- read_tsv("data/ICPSR_37143/DS0004/37143-0004-Data.tsv")
-recall <- read_tsv("data/ICPSR_37143/DS0005/37143-0005-Data.tsv")
+survey <- read_tsv("data/ICPSR_37143/DS0001/37143-0001-Data.tsv") %>%
+  janitor::clean_names()
+receipt <- read_tsv("data/ICPSR_37143/DS0002/37143-0002-Data.tsv") %>%
+  janitor::clean_names()
+fast_food <- read_tsv("data/ICPSR_37143/DS0003/37143-0003-Data.tsv") %>%
+  janitor::clean_names()
+grocery <- read_tsv("data/ICPSR_37143/DS0004/37143-0004-Data.tsv") %>%
+  janitor::clean_names()
+recall <- read_tsv("data/ICPSR_37143/DS0005/37143-0005-Data.tsv") %>%
+  janitor::clean_names()
 
 full_data <- survey %>%
   full_join(receipt, relationship = "many-to-many") %>%  
   full_join(fast_food, relationship = "many-to-many") %>%
   full_join(grocery, relationship = "many-to-many") %>%
-  full_join(recall, relationship = "many-to-many") %>% 
-  janitor::clean_names()
+  full_join(recall, relationship = "many-to-many") 
 
-diet_unsweetened_cols <- colnames(full_data)[str_detect(colnames(full_data), "diet|unsweetened")]
+diet_unsweetened_cols <- survey %>%
+  select(where(~ any(str_detect(as.character(.), "diet|unsweetened"), na.rm = TRUE))) %>%
+  colnames()
 
 full_data <- full_data %>% 
   mutate(limit = ordered(q75, levels = c("Never", "Seldom", "Sometimes", "Often", "Always"))) %>% 
@@ -50,12 +57,15 @@ full_data <- full_data %>%
          num_kids = q44,
          surveydate = dmy(surveydate)) %>%
   mutate(days_since_ban = as.numeric(interval(as.Date("2013-03-12"), surveydate) / days(1))) %>% 
-  mutate(diet = if_else(rowSums(select(., all_of(diet_unsweetened_cols)) %>% 
-                               mutate(across(everything(), as.numeric)), na.rm = TRUE) >= 1, 1, 0))
+  mutate(diet = if_else(
+    rowSums(select(., all_of(diet_unsweetened_cols)) %>% 
+              mutate(across(everything(), ~ str_detect(as.character(.), "diet|unsweetened"))), na.rm = TRUE) >= 1, 
+    1, 0
+  ))
 
 
 reduced_data <- full_data %>% 
-  select(c("receiptid", "person_id", "limit","age", "gender", "race", "edu", "city", "caff", "location", "round", "nsigns_ssb", "num_kids", "diet", "surveydate", "days_since_ban")) %>%
+  select(c("receiptid", "person_id", "limit","age", "gender", "race", "edu", "city", "caff", "location", "round", "nsigns_ssb", "num_kids", "diet", "surveydate", "days_since_ban", "")) %>%
   group_by(receiptid) %>% 
   mutate(caff = mean(caff, na.rm = T)) %>% 
   drop_na() %>% 
@@ -111,6 +121,26 @@ coef(control_clmm, matrix = T)
 ```
 
 
+```{r Backward and Forward Selection, eval=FALSE, cache=TRUE, message=FALSE, warning=FALSE}
+set.seed(67393937)
+
+upper_model <- clm(limit ~ (age + gender + race + edu + caff + nsigns_ssb + num_kids + diet + days_since_ban)^2,
+                     data = reduced_data, link = "logit")
+lower_model <- clm(limit ~ 1, 
+                     data = reduced_data, link = "logit")
+
+#backward selection
+backwardSelectModel <- stepAIC(upper_model, scope = list(lower = lower_model,
+                                                         upper = upper_model),
+                               direction = "backward")
+summary(backwardSelectModel)
+
+#forward selection
+forwardSelectModel <- stepAIC(lower_model, scope = list(lower = lower_model, 
+                                                         upper = upper_model),
+                               direction = "forward")
+summary(forwardSelectModel)
+```
 
 
 ```{r}
