@@ -73,7 +73,7 @@ reduced_data <- full_data %>%
   mutate(receiptid = as.factor(receiptid),
          person_id = as.factor(person_id),
          location = as.factor(location),
-         round = as.factor(location),
+         round = as.factor(round),
          edu = case_when(
            edu == 1 ~ "Less than High School",
            edu == 2 ~ "Some High School",
