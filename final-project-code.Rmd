@@ -152,6 +152,8 @@ coef(control_clmm_full, matrix = T)
 ```
 
 ```{r Model Selection, cache=TRUE}
+# Try age:gender interaction, 
+
 control_clmm_red <- clmm(limit ~ 1 + age + gender + edu + num_kids + diet + (1 | location) + (1 | round), control = list(trace = 1),
                      data = reduced_data, link = "logit")
 anova(control_clmm_red, control_clmm_full)
@@ -216,8 +218,9 @@ specificity(control_results, truth = limit, estimate = fit)
 
 ### Evan's section
 
+
 ```{r}
-# Single variables w/ limit
+# Single variables, interactions plotted against limit
 
 # Age
 ggplot(data = reduced_data, aes(x = age , y = limit)) + 
@@ -230,6 +233,12 @@ ggplot(data = reduced_data, aes(x = age , y = limit)) +
   facet_wrap(~gender) +
   labs(x = "age", y = "Limit")
 
+# Age faceted by child count
+ggplot(data = reduced_data, aes(x = age , y = limit)) + 
+  geom_boxplot() +
+  facet_wrap(~num_kids) +
+  labs(x = "age", y = "Limit")
+
 # Child count
 ggplot(data = reduced_data, aes(x = num_kids, fill = limit)) +
   geom_bar(position = "fill") + 
@@ -237,7 +246,7 @@ ggplot(data = reduced_data, aes(x = num_kids, fill = limit)) +
   labs(x = "Child Count", y = "Percentage", fill = "Limit") +
   theme_minimal()
 
-
+# Child count / gender interaction
 ggplot(data = reduced_data, aes(x = num_kids, fill = limit)) +
   geom_bar(position = "fill") + 
   scale_y_continuous(labels = scales::percent) + 
