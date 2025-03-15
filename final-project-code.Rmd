@@ -264,7 +264,7 @@ ggplot(data = reduced_data, aes(x = round, fill = limit)) +
   geom_bar(position = "fill") + 
   scale_y_continuous(labels = scales::percent) + 
   labs(x = "Round", y = "Percentage", fill = "Limit") +
-  facet_wrip(~city) +
+  facet_wrap(~city) +
   theme_minimal()
 
 # Advertisement count
