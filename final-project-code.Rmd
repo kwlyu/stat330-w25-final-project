@@ -12,8 +12,10 @@ library(lme4)
 library(ordinal)
 library(VGAM)
 library(stringr)
+library(tidymodels)
 library(optimx)
 library(car)
+library(workflows)
 ```
 
 ## Data Wrangling
@@ -83,35 +85,47 @@ reduced_data <- full_data %>%
            edu == 6 ~ "College Degree",
            edu == 7 ~ "Graduate Degree"
          ),
-         diet = if_else(diet == 0, "No", "Yes"))
+         diet = if_else(diet == 0, "No", "Yes")) %>% 
+  ungroup()
 
 write_csv(reduced_data, "dietControl.csv")
+
+multi_round_locations <- reduced_data %>%
+  group_by(receiptid) %>% 
+  summarize(n_rounds = n_distinct(person_id)) %>% 
+  filter(n_rounds > 1) %>%
+  pull(receiptid)
+
+reduced_data %>%
+  filter(receiptid %in% multi_round_locations) %>%
+  count(receiptid, person_id)
 ```
 
 
 ### Kunwu's section
 
-```{r Optimization Methods, cache=TRUE, eval=FALSE}
-control_clm <- clm(limit ~ age + gender + race + edu + city + caff, data = full_data, control = list(
+```{r Optimization Methods, cache=TRUE, eval=T}
+control_clm_full <- clm(limit ~ 1 + age + gender + race + edu + caff + nsigns_ssb + num_kids + diet + days_since_ban, 
+                   data = full_data, control = list(
   maxIter = 10000, 
   maxLineIter = 2000, 
   maxModIter = 2000, 
   method = "Newton", 
   trace = 1))
-control_clm <- clm(limit ~ age + gender + race + edu + city + caff, data = full_data, control = list(
+control_clm <- clm(limit ~ 1 + age + gender + race + edu + caff + nsigns_ssb + num_kids + diet + days_since_ban, data = full_data, control = list(
   method = "ucminf",
   stepmax = 1,
   grad = "central",
   maxeval = 500000,
   gradstep = c(1e-10, 1e-12),
   trace = 1))
-control_clm <- clm(limit ~ age + gender + race + edu + city + caff, data = full_data, control = list(
+control_clm <- clm(limit ~ 1 + age + gender + race + edu + caff + nsigns_ssb + num_kids + diet + days_since_ban, data = full_data, control = list(
   method = "nlminb",
   eval.max = 2000,
   iter.max = 1500,
   abs.tol = 1e-20,
   trace = 1))
-control_clm <- clm(limit ~ age + gender + race + edu + city + caff, data = full_data, control = list(
+control_clm <- clm(limit ~ 1 + age + gender + race + edu + caff + nsigns_ssb + num_kids + diet + days_since_ban, data = full_data, control = list(
   method = "optim",
   tmax = 100,
   maxit = 100000,
@@ -119,47 +133,9 @@ control_clm <- clm(limit ~ age + gender + race + edu + city + caff, data = full_
   ndeps = 1e-10,
   REPORT = 1,
   trace = 1))
-control_vglm <- vglm(limit ~ age + gender + race + edu + city + caff, 
+control_vglm <- vglm(limit ~ 1 + age + gender + race + edu + caff + nsigns_ssb + num_kids + diet + days_since_ban, 
                      data = full_data, family = cumulative(parallel = TRUE))
-control_clmm <- clmm(limit ~ 1 + age + gender + race + edu + city + caff + (1 | location) + (1 | round), control = list(trace = 1),
-                     data = full_data, link = "logit")
-
-summary(control_clm)
-summary(control_vglm)
-coef(control_vglm, matrix = T)
-summary(control_clmm)
-coef(control_clmm, matrix = T)
-
-
-## fine
-```
-
-
-```{r Backward and Forward Selection, eval=FALSE, cache=TRUE, message=FALSE, warning=FALSE}
-set.seed(67393937)
-library(MASS)
-
-upper_model <- clm(limit ~ (age + gender + race + edu + caff + nsigns_ssb + num_kids + diet + days_since_ban)^2,
-                     data = reduced_data, link = "logit")
-lower_model <- clm(limit ~ 1, 
-                     data = reduced_data, link = "logit")
-
-#backward selection
-backwardSelectModel <- stepAIC(upper_model, scope = list(lower = lower_model,
-                                                         upper = upper_model),
-                               direction = "backward")
-summary(backwardSelectModel)
-
-#forward selection
-forwardSelectModel <- stepAIC(lower_model, scope = list(lower = lower_model, 
-                                                         upper = upper_model),
-                               direction = "forward")
-summary(forwardSelectModel)
-```
-
-
-```{r}
-control_clmm_full <- clmm(limit ~ 1 + age + gender + race + edu + caff + nsigns_ssb + num_kids + diet + days_since_ban + (1 | location) + (1 | round), 
+control_clmm_full <- clmm(limit ~ 1 + age + gender + race + edu + city + caff + nsigns_ssb + num_kids + diet + days_since_ban + (1 | location) + (1 | round), 
                           control = list(method = "nlminb",
                                          useMatrix = T,
                                          maxIter = 200, 
@@ -168,38 +144,75 @@ control_clmm_full <- clmm(limit ~ 1 + age + gender + race + edu + caff + nsigns_
                                          trace = 1),
                      data = reduced_data, link = "logit")
 
+summary(control_clm)
+summary(control_vglm)
+coef(control_vglm, matrix = T)
 summary(control_clmm_full)
+coef(control_clmm_full, matrix = T)
+```
 
-control_clmm_red <- clmm(limit ~ 1 + age + gender + edu + caff + nsigns_ssb + num_kids + (1 | location) + (1 | round), control = list(trace = 1),
+```{r Model Selection, cache=TRUE}
+control_clmm_red <- clmm(limit ~ 1 + age + gender + edu + num_kids + diet + (1 | location) + (1 | round), control = list(trace = 1),
                      data = reduced_data, link = "logit")
 anova(control_clmm_red, control_clmm_full)
+summary(control_clmm_red)
 
 
-control_clmm_loc <- clmm(limit ~ 1 + age + gender + race + edu + caff + nsigns_ssb + num_kids + (1 | location), control = list(trace = 1),
+control_clmm_loc <- clmm(limit ~ 1 + age + gender + edu + num_kids + diet + (1 | location), control = list(trace = 1),
                      data = reduced_data, link = "logit")
 
-lrt_obs <- as.numeric(2*(logLik(control_clmm_red) - logLik(control_clmm_loc)))
-.5*(1 - pchisq(lrt_obs, 0)) + .5*(1 - pchisq(lrt_obs, 1))
+lrt_obs_round <- as.numeric(2*(logLik(control_clmm_red) - logLik(control_clmm_loc)))
+.5*(1 - pchisq(lrt_obs_round, 0)) + .5*(1 - pchisq(lrt_obs_round, 1))
 
-control_clmm_rnd <- clmm(limit ~ 1 + age + gender + race + edu + caff + nsigns_ssb + num_kids + (1 | round), control = list(trace = 1),
+control_clm <- clm(limit ~ 1 + age + gender + edu + num_kids + diet, control = list(trace = 1),
                      data = reduced_data, link = "logit")
-lrt_obs <- as.numeric(2*(logLik(control_clmm_red) - logLik(control_clmm_rnd)))
-.5*(1 - pchisq(lrt_obs, 0)) + .5*(1 - pchisq(lrt_obs, 1))
+lrt_obs_loc <- as.numeric(2*(logLik(control_clmm_loc) - logLik(control_clm)))
+.5*(1 - pchisq(lrt_obs_loc, 0)) + .5*(1 - pchisq(lrt_obs_loc, 1))
 
-multi_round_locations <- reduced_data %>%
-  group_by(receiptid) %>% 
-  summarize(n_rounds = n_distinct(person_id)) %>% 
-  filter(n_rounds > 1) %>%
-  pull(receiptid)
+summary(control_clm)
+control_null <- clm(limit ~ 1, data = reduced_data, link = "logit")
+# Overall fit
+anova(control_null, control_clm)
+```
 
-multi_round_locations
+```{r Bootstrap, eval=FALSE}
+set.seed(54185214)
 
-reduced_data %>%
-  filter(receiptid %in% multi_round_locations) %>%
-  count(receiptid, person_id)
+Nsim <- 1000   
+lrt_sim <- rep(NA,Nsim) 
+
+nullY <- simulate(control_clmm_loc, nsim=Nsim)
+
+for (i in 1:Nsim){  
+  null_clmm <- clmm(nullY[ , i] ~ 1 + age + gender + edu + num_kids + diet + (1 | location),
+       data = reduced_data, link = "logit")
+  alt_clmm <- refit(control_clmm_red, nullY[, i])
+  lrt_sim[i] <- 2*(logLik(alt_clmm, REML = TRUE)-logLik(null_clmm, REML = TRUE))
+}
+
+mean(lrt_sim > lrt_obs_round)       #P-value
+ggplot(data.frame(lrt_sim), aes(x=lrt_sim)) + 
+  geom_histogram(color = "white") + 
+  geom_vline(xintercept = lrt_obs_round, color = "red") 
 ```
 
 
+```{r Model Accuracy, cache=TRUE}
+control_pred <- predict(control_clm, type = "class")
+control_results <- reduced_data %>%
+  select(limit) %>%
+  bind_cols(predicted = control_pred)
+# table(control_results$limit, control_results$fit)
+conf_mat(control_results, truth = limit, estimate = fit)
+
+# Goodness of fit
+chisq.test(control_results$limit, control_results$fit)
+
+accuracy(control_results, truth = limit, estimate = fit)
+sensitivity(control_results, truth = limit, estimate = fit)
+specificity(control_results, truth = limit, estimate = fit)
+# ppv(control_results, truth = limit, estimate = fit)
+```
 
 ### Evan's section
 
