@@ -15,6 +15,8 @@ VGAM
 optimx
 carData
 car
+knitr
+rlang
 tidymodels
 broom
 scales
@@ -28,5 +30,3 @@ tune
 workflows
 workflowsets
 yardstick
-knitr
-rlang

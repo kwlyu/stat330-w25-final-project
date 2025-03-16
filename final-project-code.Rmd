@@ -74,15 +74,14 @@ reduced_data <- full_data %>%
   mutate(age_std = standardize(as.numeric(q76))) %>%
   select(c("receiptid", "person_id", "limit", "age", "age_std", "gender",
            "race", "edu", "city", "caff", "location", "round", "nsigns_ssb", 
-           "num_kids", "surveydate", "days_since_ban", "kcal", "f_total", 
-           "v_total", "fatg", "sugarg")) %>%
+           "num_kids", "surveydate", "days_since_ban", "caloriescal", "fatg",
+           "sugarg")) %>%
   group_by(receiptid) %>% 
-  mutate(caff = mean(caff, na.rm = T), # across each receipt
-         f_total = mean(f_total, na.rm = T),
-         v_total = mean(v_total, na.rm = T),
-         kcal = mean(kcal, na.rm = T),
-         fatg = mean(fatg, na.rm = T),
-         sugarg = mean(sugarg, na.rm = T)) %>% 
+  mutate(black = if_else(race == "Black", "Black", "non-Black")) %>% 
+  mutate(caff = sum(caff, na.rm = T), # across each receipt
+         caloriescal = sum(caloriescal, na.rm = T),
+         fatg = sum(fatg, na.rm = T),
+         sugarg = sum(sugarg, na.rm = T)) %>% 
   drop_na() %>% 
   distinct() %>% # Remove duplicate rows because multiple items are on a receipt
   mutate(receiptid = as.factor(receiptid),
@@ -99,19 +98,14 @@ reduced_data <- full_data %>%
            edu == 7 ~ "Graduate Degree"
          )) %>% 
   ungroup() %>% 
-  mutate(f_std = standardize(f_total),
-         v_std = standardize(v_total),
+  mutate(
          caff_std = standardize(caff),
          nsigns_ssb_std = standardize(nsigns_ssb),
          days_since_ban_std = standardize(days_since_ban),
-         kcal_std = standardize(kcal),
+         caloriescal_std = standardize(caloriescal),
          fatg_std = standardize(fatg),
          sugarg_std = standardize(sugarg)
-         ) %>% 
-  mutate(fv = f_std + v_std) %>% 
-  mutate(fv_std = standardize(fv),
-         log_age = log(age),
-         exp_age = exp(age))
+         ) 
 
 # Cleaned data
 write_csv(reduced_data, "dietControl.csv")
@@ -187,9 +181,24 @@ ggplot(data = reduced_data, aes(x = city, fill = limit)) +
   theme_minimal()
 
 # Caffeine
-ggplot(data = reduced_data %>% filter(caff > 0), aes(x = log(caff + 1) , y = limit)) + 
+ggplot(data = reduced_data %>% filter(caff > 0), aes(x = caff , y = limit)) + 
   geom_boxplot() +
   labs(x = "Caffeine", y = "Limit")
+
+# Kcal
+ggplot(data = reduced_data, aes(x = caloriescal, y = limit)) + 
+  geom_boxplot() +
+  labs(x = "Calaries", y = "Limit")
+
+# fat
+ggplot(data = reduced_data, aes(x = fatg, y = limit)) + 
+  geom_boxplot() +
+  labs(x = "Fat (g)", y = "Limit")
+
+# sugar
+ggplot(data = reduced_data, aes(x = sugarg, y = limit)) + 
+  geom_boxplot() +
+  labs(x = "Sugar (g)", y = "Limit")
 
 # Survey round
 ggplot(data = reduced_data, aes(x = round, fill = limit)) +
@@ -209,8 +218,8 @@ ggplot(data = reduced_data, aes(y = nsigns_ssb, x = limit)) +
 ```{r Programatic Interaction function, cache=TRUE}
 # Plot function for interactions
 
-plot_cats <- c("limit", "gender", "race", "city", "round", "num_kids", "edu", "diet")
-plot_nums <- c("age", "caff", "nsigns_ssb", "days_since_ban")
+plot_cats <- c("limit", "gender", "race", "city", "round", "num_kids", "edu")
+plot_nums <- c("age", "caff", "nsigns_ssb", "days_since_ban", "caloriescal", "sugarg", "fatg")
 
 library(rlang)
 
@@ -328,7 +337,7 @@ Note that we also tested the non-standardized model. They both produced the simi
 ```{r Full Model, cache=TRUE}
 control_clmm_full_std <- clmm(limit ~ 1 + age_std + gender + race + edu + city + caff_std + 
                                 nsigns_ssb_std + num_kids + days_since_ban_std + 
-                                kcal_std + fv_std + fatg_std + sugarg_std +
+                                caloriescal_std + fatg_std + sugarg_std +
                                 (1 | location) + (1 | round),
                           control = list(method = "nlminb",
                                          useMatrix = T,
@@ -356,8 +365,9 @@ summary(control_clmm_full_std)
 
 ### Fixed Effects
 ```{r Full vs. Sig Fixed, cache=TRUE}
-control_clmm_red <- clmm(limit ~ 1 + age_std + gender + edu + num_kids + 
-                           (1 | location) + (1 | round), 
+control_clmm_red <- clmm(limit ~ 1 + age_std + gender + race + edu + city + 
+                           caff_std + num_kids + caloriescal_std +
+                                (1 | location) + (1 | round), 
                          data = reduced_data, link = "logit")
 anova(control_clmm_red, control_clmm_full_std)
 summary(control_clmm_red)
@@ -369,7 +379,8 @@ Note that we couldn't perform bootstrap because the `simulate` command is not im
 
 #### Level 3 Random Intercept
 ```{r No Lv3 RE, cache=TRUE}
-control_clmm_loc <- clmm(limit ~ 1 + age_std + gender + edu + num_kids + 
+control_clmm_loc <- clmm(limit ~ 1 + age_std + gender + race + edu + city + 
+                           caff_std + num_kids + caloriescal_std +
                            (1 | location),
                          data = reduced_data, link = "logit")
 
@@ -381,10 +392,13 @@ lrt_obs_round <- as.numeric(2*(logLik(control_clmm_red) -
 #### Level 2 Random Intercept
 
 ```{r No Lv2 RE, cache=TRUE}
-control_clm <- clm(limit ~ 1 + age_std + gender + edu + num_kids, 
+control_clm <- clm(limit ~ 1 + age_std + gender + race + edu + city + 
+                           caff_std + num_kids + caloriescal_std, 
                    data = reduced_data, link = "logit")
 lrt_obs_loc <- as.numeric(2*(logLik(control_clmm_loc) - logLik(control_clm)))
 .5*(1 - pchisq(lrt_obs_loc, 0)) + .5*(1 - pchisq(lrt_obs_loc, 1))
+
+summary(control_clmm_loc)
 ```
 
 ### Separate slopes for each level
@@ -393,6 +407,11 @@ Ordinal provides two built-in commands for testing whether we need separate slop
 ```{r Separate Slopes, cache=TRUE}
 nominal_test(control_clm)
 scale_test(control_clm)
+
+control_clm_nom <- clm(limit ~ 1 + race + edu + num_kids + caloriescal_std, 
+                       nominal = ~ age_std + gender + city + caff_std, 
+                   data = reduced_data, link = "logit")
+anova(control_clm_nom, control_clm)
 ```
 
 #### Overall fit
@@ -401,8 +420,10 @@ Compared to the only intercept model.
 ```{r Overall Chisq test, cache=TRUE}
 control_null <- clm(limit ~ 1, data = reduced_data, link = "logit")
 # Overall fit
-anova(control_null, control_clm)
-summary(control_clm)
+anova(control_null, control_clm_nom)
+
+control_null_re <- clmm(limit ~ 1 + (1 | location), data = reduced_data, link = "logit")
+anova(control_null, control_clmm_loc)
 ```
 
 ## Model Diagnostics
@@ -434,7 +455,7 @@ model_accuracy <- function(model = control_clm, adj = F) {
     # Goodness of fit
     chisq.test(control_results$limit, control_results$fit) -> gof
     
-    return(list(conf = conf, acc = acc, sen = sen, spe = spe, gof = gof))
+    return(list(control_results = control_results, conf = conf, acc = acc, sen = sen, spe = spe, gof = gof))
     }
   if (adj) {
     # Predict response
@@ -458,14 +479,16 @@ model_accuracy <- function(model = control_clm, adj = F) {
   return(result)
 }
 
-model_accuracy(control_clm)
+model_accuracy(control_clm_nom)
 
 ## Similar results under different model specifications
-control_clm_probit <- clm(limit ~ 1 + age_std + gender + edu + num_kids, 
+control_clm_probit <- clm(limit ~ 1 + age_std + gender + race + edu + city + 
+                           caff_std + num_kids + caloriescal_std, 
                    data = reduced_data, link = "probit")
 model_accuracy(control_clm_probit)
 
-control_clm_sym <- clm(limit ~ 1 + age_std + gender + edu + num_kids, 
+control_clm_sym <- clm(limit ~ 1 + age_std + gender + race + edu + city + 
+                           caff_std + num_kids + caloriescal_std, 
                    data = reduced_data, 
                    link = "probit", threshold = "equidistant")
 model_accuracy(control_clm_sym)
@@ -473,7 +496,8 @@ model_accuracy(control_clm_sym)
 
 ## Use VGAM to get prob for each level of resp, not implemented in Ordinal
 ## Similarly inaccurate model
-control_vglm_sig <- vglm(limit ~ 1 + age_std + gender + edu + num_kids, 
+control_vglm_sig <- vglm(limit ~ 1 + age_std + gender + race + edu + city + 
+                           caff_std + num_kids + caloriescal_std, 
                      data = reduced_data, 
                      family = cumulative(parallel = TRUE))
 model_accuracy(control_vglm_sig, adj = T)
@@ -483,7 +507,7 @@ model_accuracy(control_vglm_sig, adj = T)
 ```{r Residual Analysis, cache=TRUE}
 plot(fitted(control_clm), residuals(control_clm))
 
-control_resid <- control_results %>%
+control_resid <- model_accuracy(control_clm_nom)$control_results %>%
   mutate(
     case_id = row_number(), 
     fit = ordered(fit, levels = c("Never", "Seldom", "Sometimes", "Often", "Always"))
@@ -530,8 +554,9 @@ ggplot(control_resid, aes(x = case_id, y = resid)) +
 
 ### Confidence Intervals
 
-```{r CI, cache=TRUE}
-confint(control_clm) %>% kable(digits = 3)
-exp(confint(control_clm)) %>% kable(digits = 3)
-(100*(exp(confint(control_clm))-1)) %>% kable(digits = 3)
+```{r CI}
+confint(control_clmm_loc) %>% kable(digits = 3)
+exp(confint(control_clmm_loc)) %>% kable(digits = 3)
+(100*(exp(confint(control_clmm_loc))-1)) %>% kable(digits = 3)
 ```
+
