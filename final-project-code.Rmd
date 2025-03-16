@@ -161,9 +161,17 @@ summary(control_clmm_full)
 coef(control_clmm_full, matrix = T)
 ```
 
-```{r Model Selection, cache=TRUE}
+```{r, cache=TRUE}
+control_clmm_full <- clmm(limit ~ 1 + age_std + gender + race + edu + city + caff_std + nsigns_ssb_std + num_kids + days_since_ban_std + kcal_std + fv_std + (1 | location) + (1 | round),
+                          control = list(method = "nlminb",
+                                         useMatrix = T,
+                                         maxIter = 200,
+                                         gradTol = 1e-4,
+                                         maxLineIter = 200,
+                                         trace = 1),
+                     data = reduced_data, link = "logit")
 
-control_clmm_red <- clmm(limit ~ 1 + age + gender + edu + num_kids + diet + (1 | location) + (1 | round), control = list(trace = 1),
+control_clmm_red <- clmm(limit ~ 1 + age + gender + edu + num_kids + (1 | location) + (1 | round), control = list(trace = 1),
                      data = reduced_data, link = "logit")
 # control_clmm_full_non <- clmm(limit ~ 1 + age + gender + race + edu + city + caff + nsigns_ssb + num_kids + days_since_ban + kcal + fv + (1 | location) + (1 | round), 
 #                           control = list(method = "nlminb",
@@ -196,6 +204,9 @@ lrt_obs_loc <- as.numeric(2*(logLik(control_clmm_loc) - logLik(control_clm)))
 .5*(1 - pchisq(lrt_obs_loc, 0)) + .5*(1 - pchisq(lrt_obs_loc, 1))
 
 summary(control_clm)
+nominal_test(control_clm)
+scale_test(control_clm)
+
 control_null <- clm(limit ~ 1, data = reduced_data, link = "logit")
 # Overall fit
 anova(control_null, control_clm)
