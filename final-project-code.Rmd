@@ -6,7 +6,7 @@ output: pdf_document
 ---
 
 ```{r setup, include=FALSE, cache=TRUE, warning=FALSE, message=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, error = TRUE)
 library(tidyverse)
 library(lme4)
 library(ordinal)
@@ -75,12 +75,14 @@ reduced_data <- full_data %>%
   select(c("receiptid", "person_id", "limit", "age", "age_std", "gender",
            "race", "edu", "city", "caff", "location", "round", "nsigns_ssb", 
            "num_kids", "surveydate", "days_since_ban", "kcal", "f_total", 
-           "v_total")) %>%
+           "v_total", "fatg", "sugarg")) %>%
   group_by(receiptid) %>% 
   mutate(caff = mean(caff, na.rm = T), # across each receipt
          f_total = mean(f_total, na.rm = T),
          v_total = mean(v_total, na.rm = T),
-         kcal = mean(kcal, na.rm = T)) %>% 
+         kcal = mean(kcal, na.rm = T),
+         fatg = mean(fatg, na.rm = T),
+         sugarg = mean(sugarg, na.rm = T)) %>% 
   drop_na() %>% 
   distinct() %>% # Remove duplicate rows because multiple items are on a receipt
   mutate(receiptid = as.factor(receiptid),
@@ -102,7 +104,9 @@ reduced_data <- full_data %>%
          caff_std = standardize(caff),
          nsigns_ssb_std = standardize(nsigns_ssb),
          days_since_ban_std = standardize(days_since_ban),
-         kcal_std = standardize(kcal)
+         kcal_std = standardize(kcal),
+         fatg_std = standardize(fatg),
+         sugarg_std = standardize(sugarg)
          ) %>% 
   mutate(fv = f_std + v_std) %>% 
   mutate(fv_std = standardize(fv),
@@ -323,13 +327,16 @@ Note that we also tested the non-standardized model. They both produced the simi
 
 ```{r Full Model, cache=TRUE}
 control_clmm_full_std <- clmm(limit ~ 1 + age_std + gender + race + edu + city + caff_std + 
-                                nsigns_ssb_std + num_kids + days_since_ban_std + kcal_std + fv_std + 
+                                nsigns_ssb_std + num_kids + days_since_ban_std + 
+                                kcal_std + fv_std + fatg_std + sugarg_std +
                                 (1 | location) + (1 | round),
                           control = list(method = "nlminb",
                                          useMatrix = T,
                                          maxIter = 200,
                                          gradTol = 1e-4,
-                                         maxLineIter = 200),
+                                         maxLineIter = 200
+                                         # , trace = 1
+                                         ),
                      data = reduced_data, link = "logit")
 
 summary(control_clmm_full_std)
@@ -407,27 +414,71 @@ Because residual analysis are not well understood in ordinal models, we opted fo
 ```{r Model Accuracy, cache=TRUE}
 library(tidymodels)
 library(workflows)
-# Predict response
-control_pred <- predict(control_clm, type = "class")
 
-control_results <- reduced_data %>%
-  bind_cols(control_pred)
+model_accuracy <- function(model = control_clm, adj = F) {
+    comp_metrics <- function(model = model, predict) {
+      control_results <- reduced_data %>%
+      bind_cols(fit = predict)
+    
+    
+    # Confusion matrix
+    # table(control_results$limit, control_results$fit)
+    conf_mat(control_results, truth = limit, estimate = fit) -> conf
+    
+    # accuracy metrics
+    accuracy(control_results, truth = limit, estimate = fit) -> acc
+    sensitivity(control_results, truth = limit, estimate = fit) -> sen
+    specificity(control_results, truth = limit, estimate = fit) -> spe
+    # ppv(control_results, truth = limit, estimate = fit)
+    
+    # Goodness of fit
+    chisq.test(control_results$limit, control_results$fit) -> gof
+    
+    return(list(conf = conf, acc = acc, sen = sen, spe = spe, gof = gof))
+    }
+  if (adj) {
+    # Predict response
+    control_vglm_pred <- predict(model, type = "response")
+    level_counts <- table(reduced_data$limit)
+    total_counts <- sum(level_counts)
+    proportions <- as.numeric(level_counts / total_counts)
+    names(proportions) <- names(level_counts)
+    
+    adjusted_probs <- control_vglm_pred / proportions[colnames(control_vglm_pred)]
+    adjusted_probs <- adjusted_probs / rowSums(adjusted_probs)
+    fit <- ordered(colnames(adjusted_probs)[max.col(adjusted_probs)],
+                     levels = c("Never", "Seldom", "Sometimes",
+                                "Often", "Always"))
+    comp_metrics(model = model, predict = fit) -> result
+  } else {
+    # Predict response
+    control_pred <- predict(model, type = "class")
+    comp_metrics(model = model, control_pred) -> result
+  }
+  return(result)
+}
 
-# Confusion matrix
-# table(control_results$limit, control_results$fit)
-conf_mat(control_results, truth = limit, estimate = fit)
+model_accuracy(control_clm)
 
-# accuracy metrics
-accuracy(control_results, truth = limit, estimate = fit)
-sensitivity(control_results, truth = limit, estimate = fit)
-specificity(control_results, truth = limit, estimate = fit)
-# ppv(control_results, truth = limit, estimate = fit)
+## Similar results under different model specifications
+control_clm_probit <- clm(limit ~ 1 + age_std + gender + edu + num_kids, 
+                   data = reduced_data, link = "probit")
+model_accuracy(control_clm_probit)
+
+control_clm_sym <- clm(limit ~ 1 + age_std + gender + edu + num_kids, 
+                   data = reduced_data, 
+                   link = "probit", threshold = "equidistant")
+model_accuracy(control_clm_sym)
+
+
+## Use VGAM to get prob for each level of resp, not implemented in Ordinal
+## Similarly inaccurate model
+control_vglm_sig <- vglm(limit ~ 1 + age_std + gender + edu + num_kids, 
+                     data = reduced_data, 
+                     family = cumulative(parallel = TRUE))
+model_accuracy(control_vglm_sig, adj = T)
 ```
 
-```{r GOF, cache=TRUE}
-# Goodness of fit
-chisq.test(control_results$limit, control_results$fit)
-```
 
 ```{r Residual Analysis, cache=TRUE}
 plot(fitted(control_clm), residuals(control_clm))
@@ -437,7 +488,22 @@ control_resid <- control_results %>%
     case_id = row_number(), 
     fit = ordered(fit, levels = c("Never", "Seldom", "Sometimes", "Often", "Always"))
   ) %>% 
-  select(case_id, limit, fit)
+  select(case_id, limit, fit) %>% 
+  mutate(
+    limit_num = case_when(
+      limit == "Never" ~ 0,
+      limit == "Seldom" ~ 1,
+      limit == "Sometimes" ~ 2,
+      limit == "Often" ~ 3,
+      limit == "Always" ~ 4),
+    fit_num = case_when(
+      fit == "Never" ~ 0,
+      fit == "Seldom" ~ 1,
+      fit == "Sometimes" ~ 2,
+      fit == "Often" ~ 3,
+      fit == "Always" ~ 4),
+    ) %>% 
+  mutate(resid = limit_num - fit_num)
 
 ggplot(control_resid, aes(x = case_id)) +
   geom_jitter(aes(y = limit, color = "Actual"), alpha = 0.4) +
@@ -448,6 +514,14 @@ ggplot(control_resid, aes(x = case_id)) +
     y = "Response Category",
     title = "Actual vs. Fitted Values",
     color = "Legend"
+  ) +
+  theme_minimal()
+
+ggplot(control_resid, aes(x = case_id, y = resid)) +
+  geom_jitter(alpha = 0.4) +
+  labs(
+    x = "Case ID",
+    y = "Residual"
   ) +
   theme_minimal()
 ```
