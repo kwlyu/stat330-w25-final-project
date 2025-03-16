@@ -155,6 +155,12 @@ ggplot(data = reduced_data, aes(x = age , y = limit)) +
   facet_wrap(~num_kids) +
   labs(x = "age", y = "Limit")
 
+ggplot(data = reduced_data, aes(x = gender, fill = limit)) +
+  geom_bar(position = "fill") + 
+  scale_y_continuous(labels = scales::percent) + 
+  labs(x = "Gender", y = "Percentage", fill = "Limit") +
+  theme_minimal()
+
 # Child count
 ggplot(data = reduced_data, aes(x = num_kids, fill = limit)) +
   geom_bar(position = "fill") + 
@@ -182,7 +188,7 @@ ggplot(data = reduced_data, aes(x = edu, fill = limit)) +
   geom_bar(position = "fill") + 
   scale_y_continuous(labels = scales::percent) + 
   labs(x = "Education", y = "Percentage", fill = "Limit") +
-  theme_minimal()
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
 # City
 ggplot(data = reduced_data, aes(x = city, fill = limit)) +
@@ -377,7 +383,7 @@ summary(control_clmm_full_std)
 ### Fixed Effects
 ```{r Full vs. Sig Fixed, cache=TRUE}
 control_clmm_red <- clmm(limit ~ 1 + age_std + gender + race + edu + city + 
-                           caff_std + num_kids + caloriescal_std +
+                           num_kids +
                                 (1 | location) + (1 | round), 
                          data = reduced_data, link = "logit")
 anova(control_clmm_red, control_clmm_full_std)
@@ -391,7 +397,7 @@ Note that we couldn't perform bootstrap because the `simulate` command is not im
 #### Level 3 Random Intercept
 ```{r No Lv3 RE, cache=TRUE}
 control_clmm_loc <- clmm(limit ~ 1 + age_std + gender + race + edu + city + 
-                           caff_std + num_kids + caloriescal_std +
+                           num_kids +
                            (1 | location),
                          data = reduced_data, link = "logit")
 
@@ -404,7 +410,7 @@ lrt_obs_round <- as.numeric(2*(logLik(control_clmm_red) -
 
 ```{r No Lv2 RE, cache=TRUE}
 control_clm <- clm(limit ~ 1 + age_std + gender + race + edu + city + 
-                           caff_std + num_kids + caloriescal_std, 
+                           num_kids, 
                    data = reduced_data, link = "logit")
 lrt_obs_loc <- as.numeric(2*(logLik(control_clmm_loc) - logLik(control_clm)))
 .5*(1 - pchisq(lrt_obs_loc, 0)) + .5*(1 - pchisq(lrt_obs_loc, 1))
@@ -419,8 +425,8 @@ Ordinal provides two built-in commands for testing whether we need separate slop
 nominal_test(control_clm)
 scale_test(control_clm)
 
-control_clm_nom <- clm(limit ~ 1 + race + edu + num_kids + caloriescal_std, 
-                       nominal = ~ age_std + gender + city + caff_std, 
+control_clm_nom <- clm(limit ~ 1 + race + edu + num_kids, 
+                       nominal = ~ age_std + gender + city, 
                    data = reduced_data, link = "logit")
 anova(control_clm_nom, control_clm)
 ```
@@ -494,12 +500,12 @@ model_accuracy(control_clm_nom)
 
 ## Similar results under different model specifications
 control_clm_probit <- clm(limit ~ 1 + age_std + gender + race + edu + city + 
-                           caff_std + num_kids + caloriescal_std, 
+                           num_kids, 
                    data = reduced_data, link = "probit")
 model_accuracy(control_clm_probit)
 
 control_clm_sym <- clm(limit ~ 1 + age_std + gender + race + edu + city + 
-                           caff_std + num_kids + caloriescal_std, 
+                           num_kids, 
                    data = reduced_data, 
                    link = "probit", threshold = "equidistant")
 model_accuracy(control_clm_sym)
@@ -508,7 +514,7 @@ model_accuracy(control_clm_sym)
 ## Use VGAM to get prob for each level of resp, not implemented in Ordinal
 ## Similarly inaccurate model
 control_vglm_sig <- vglm(limit ~ 1 + age_std + gender + race + edu + city + 
-                           caff_std + num_kids + caloriescal_std, 
+                           num_kids, 
                      data = reduced_data, 
                      family = cumulative(parallel = TRUE))
 model_accuracy(control_vglm_sig, adj = T)
