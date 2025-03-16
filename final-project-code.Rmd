@@ -40,7 +40,7 @@ full_data <- survey %>%
 
 full_data <- full_data %>% 
   mutate(limit = ordered(q75, levels = c("Never", "Seldom", "Sometimes", "Often", "Always"))) %>% 
-  mutate(age = as.numeric(q76) - mean(as.numeric(76)),
+  mutate(age = as.numeric(q76),
          gender = if_else(q77 == 0, "M", "F"),
          race = case_when(
            !is.na(q79_1) ~ "Native",
@@ -54,7 +54,8 @@ full_data <- full_data %>%
          city = q1,
          num_kids = q44,
          surveydate = dmy(surveydate)) %>%
-  mutate(days_since_ban = as.numeric(interval(as.Date("2013-03-12"), surveydate) / days(1))) 
+  mutate(days_since_ban = as.numeric(interval(as.Date("2013-03-12"), surveydate) / days(1))) %>% 
+  filter(age > 0)
 
 standardize <- function(x, na.rm = TRUE) {
   (x - mean(x, na.rm = na.rm)) / 
@@ -93,7 +94,9 @@ reduced_data <- full_data %>%
          kcal_std = standardize(kcal)
          ) %>% 
   mutate(fv = f_std + v_std) %>% 
-  mutate(fv_std = standardize(fv))
+  mutate(fv_std = standardize(fv),
+         log_age = log(age),
+         exp_age = exp(age))
 
 write_csv(reduced_data, "dietControl.csv")
 
@@ -174,14 +177,14 @@ control_clmm_full_std <- clmm(limit ~ 1 + age_std + gender + race + edu + city +
                                          trace = 1),
 >>>>>>> ddb042834efc108ffd3c35c98c1628f3b65f7b45
                      data = reduced_data, link = "logit")
-control_clmm_full_non <- clmm(limit ~ 1 + age + gender + race + edu + city + caff + nsigns_ssb + num_kids + days_since_ban + kcal + fv + (1 | location) + (1 | round), 
-                          control = list(method = "nlminb",
-                                         useMatrix = T,
-                                         maxIter = 200, 
-                                         gradTol = 1e-4, 
-                                         maxLineIter = 200,
-                                         trace = 1),
-                     data = reduced_data, link = "logit")
+# control_clmm_full_non <- clmm(limit ~ 1 + age + gender + race + edu + city + caff + nsigns_ssb + num_kids + days_since_ban + kcal + fv + (1 | location) + (1 | round), 
+#                           control = list(method = "nlminb",
+#                                          useMatrix = T,
+#                                          maxIter = 200, 
+#                                          gradTol = 1e-4, 
+#                                          maxLineIter = 200,
+#                                          trace = 1),
+#                      data = reduced_data, link = "logit")
 summary(control_clmm_full_std)
 ```
 
@@ -235,10 +238,13 @@ ggplot(data.frame(lrt_sim), aes(x=lrt_sim)) +
 
 ```{r Model Accuracy, cache=TRUE}
 control_pred <- predict(control_clm, type = "class")
+
 control_results <- reduced_data %>%
-  bind_cols(predicted = control_pred)
+  bind_cols(control_pred)
+
 # table(control_results$limit, control_results$fit)
 conf_mat(control_results, truth = limit, estimate = fit)
+conf_mat(control_results_log, truth = limit, estimate = fit)
 
 # Goodness of fit
 chisq.test(control_results$limit, control_results$fit)
