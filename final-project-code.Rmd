@@ -5,24 +5,24 @@ date: "`r Sys.Date()`"
 output: pdf_document
 ---
 
-```{r setup, include=FALSE, cache=TRUE}
+```{r setup, include=FALSE, cache=TRUE, warning=FALSE, message=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(lme4)
 library(ordinal)
 library(VGAM)
 library(stringr)
-library(tidymodels)
 library(optimx)
 library(car)
-library(workflows)
+library(knitr)
 ```
 
 ## Data Wrangling
 
-```{r}
+```{r Load in Data, cache=TRUE, warning=FALSE, message=FALSE}
+## Data from ICPSR
 survey <- read_tsv("data/ICPSR_37143/DS0001/37143-0001-Data.tsv") %>%
-  janitor::clean_names()
+  janitor::clean_names() # To all lower case
 receipt <- read_tsv("data/ICPSR_37143/DS0002/37143-0002-Data.tsv") %>%
   janitor::clean_names()
 fast_food <- read_tsv("data/ICPSR_37143/DS0003/37143-0003-Data.tsv") %>%
@@ -32,14 +32,17 @@ grocery <- read_tsv("data/ICPSR_37143/DS0004/37143-0004-Data.tsv") %>%
 recall <- read_tsv("data/ICPSR_37143/DS0005/37143-0005-Data.tsv") %>%
   janitor::clean_names()
 
+## Combine multiple surveys
 full_data <- survey %>%
   full_join(receipt, relationship = "many-to-many") %>%  
   full_join(fast_food, relationship = "many-to-many") %>%
   full_join(grocery, relationship = "many-to-many") %>%
   full_join(recall, relationship = "many-to-many") 
 
+## Mutating
 full_data <- full_data %>% 
-  mutate(limit = ordered(q75, levels = c("Never", "Seldom", "Sometimes", "Often", "Always"))) %>% 
+  mutate(limit = ordered(q75, levels = c("Never", "Seldom", "Sometimes",
+                                         "Often", "Always"))) %>% # for ordinal
   mutate(age = as.numeric(q76),
          gender = if_else(q77 == 0, "M", "F"),
          race = case_when(
@@ -54,24 +57,32 @@ full_data <- full_data %>%
          city = q1,
          num_kids = q44,
          surveydate = dmy(surveydate)) %>%
-  mutate(days_since_ban = as.numeric(interval(as.Date("2013-03-12"), surveydate) / days(1))) %>% 
+  mutate(days_since_ban = 
+           as.numeric(interval(as.Date("2013-03-12"), surveydate) / days(1))) %>% 
   filter(age > 0)
+```
 
+```{r Subseting Data, cache=TRUE}
+# Standardize numerical for prediction
 standardize <- function(x, na.rm = TRUE) {
   (x - mean(x, na.rm = na.rm)) / 
     sd(x, na.rm = na.rm)
 }
 
+# subset of complete dataset
 reduced_data <- full_data %>% 
   mutate(age_std = standardize(as.numeric(q76))) %>%
-  select(c("receiptid", "person_id", "limit", "age", "age_std", "gender", "race", "edu", "city", "caff", "location", "round", "nsigns_ssb", "num_kids", "surveydate", "days_since_ban", "kcal", "f_total", "v_total")) %>%
+  select(c("receiptid", "person_id", "limit", "age", "age_std", "gender",
+           "race", "edu", "city", "caff", "location", "round", "nsigns_ssb", 
+           "num_kids", "surveydate", "days_since_ban", "kcal", "f_total", 
+           "v_total")) %>%
   group_by(receiptid) %>% 
-  mutate(caff = mean(caff, na.rm = T),
+  mutate(caff = mean(caff, na.rm = T), # across each receipt
          f_total = mean(f_total, na.rm = T),
          v_total = mean(v_total, na.rm = T),
          kcal = mean(kcal, na.rm = T)) %>% 
   drop_na() %>% 
-  distinct() %>% 
+  distinct() %>% # Remove duplicate rows because multiple items are on a receipt
   mutate(receiptid = as.factor(receiptid),
          person_id = as.factor(person_id),
          location = as.factor(location),
@@ -98,189 +109,24 @@ reduced_data <- full_data %>%
          log_age = log(age),
          exp_age = exp(age))
 
+# Cleaned data
 write_csv(reduced_data, "dietControl.csv")
 
-multi_round_locations <- reduced_data %>%
+# One receipt can't appear in multiple locations
+multi_receipt_locations <- reduced_data %>%
   group_by(receiptid) %>% 
-  summarize(n_rounds = n_distinct(round)) %>% 
+  summarize(n_rounds = n_distinct(location)) %>% 
   filter(n_rounds > 1) %>%
   pull(receiptid)
 
 reduced_data %>%
-  filter(location %in% multi_round_locations) %>%
+  filter(receiptid %in% multi_receipt_locations) %>%
   count(receiptid, location)
 ```
 
+## EDA
 
-### Kunwu's section
-
-```{r Optimization Methods, cache=TRUE, eval=T}
-control_clm_full <- clm(limit ~ 1 + age + gender + race + edu + caff + nsigns_ssb + num_kids + days_since_ban, 
-                   data = reduced_data, control = list(
-  maxIter = 10000, 
-  maxLineIter = 2000, 
-  maxModIter = 2000, 
-  method = "Newton", 
-  trace = 1))
-control_clm <- clm(limit ~ 1 + age + gender + race + edu + caff + nsigns_ssb + num_kids + days_since_ban, data = reduced_data, control = list(
-  method = "ucminf",
-  stepmax = 1,
-  grad = "central",
-  maxeval = 500000,
-  gradstep = c(1e-10, 1e-12),
-  trace = 1))
-control_clm <- clm(limit ~ 1 + age + gender + race + edu + caff + nsigns_ssb + num_kids + days_since_ban, data = reduced_data, control = list(
-  method = "nlminb",
-  eval.max = 2000,
-  iter.max = 1500,
-  abs.tol = 1e-20,
-  trace = 1))
-control_clm <- clm(limit ~ 1 + age + gender + race + edu + caff + nsigns_ssb + num_kids + days_since_ban, data = reduced_data, control = list(
-  method = "optim",
-  tmax = 100,
-  maxit = 100000,
-  type = 1,
-  ndeps = 1e-10,
-  REPORT = 1,
-  trace = 1))
-control_vglm <- vglm(limit ~ 1 + age + gender + race + edu + caff + nsigns_ssb + num_kids + days_since_ban, 
-                     data = reduced_data, family = cumulative(parallel = TRUE))
-control_clmm_full <- clmm(limit ~ 1 + age + gender + race + edu + city + caff + nsigns_ssb + num_kids + days_since_ban + (1 | location) + (1 | round), 
-                          control = list(method = "nlminb",
-                                         useMatrix = T,
-                                         maxIter = 200, 
-                                         gradTol = 1e-4, 
-                                         maxLineIter = 200,
-                                         trace = 1),
-                     data = reduced_data, link = "logit")
-
-summary(control_clm)
-summary(control_vglm)
-coef(control_vglm, matrix = T)
-summary(control_clmm_full)
-coef(control_clmm_full, matrix = T)
-```
-
-```{r, cache=TRUE}
-control_clmm_full <- clmm(limit ~ 1 + age_std + gender + race + edu + city + caff_std + nsigns_ssb_std + num_kids + days_since_ban_std + kcal_std + fv_std + (1 | location) + (1 | round),
-                          control = list(method = "nlminb",
-                                         useMatrix = T,
-                                         maxIter = 200,
-                                         gradTol = 1e-4,
-                                         maxLineIter = 200,
-                                         trace = 1),
-                     data = reduced_data, link = "logit")
-
-control_clmm_red <- clmm(limit ~ 1 + age + gender + edu + num_kids + (1 | location) + (1 | round), control = list(trace = 1),
-                     data = reduced_data, link = "logit")
-# control_clmm_full_non <- clmm(limit ~ 1 + age + gender + race + edu + city + caff + nsigns_ssb + num_kids + days_since_ban + kcal + fv + (1 | location) + (1 | round), 
-#                           control = list(method = "nlminb",
-#                                          useMatrix = T,
-#                                          maxIter = 200, 
-#                                          gradTol = 1e-4, 
-#                                          maxLineIter = 200,
-#                                          trace = 1),
-#                      data = reduced_data, link = "logit")
-summary(control_clmm_full_std)
-```
-
-
-```{r Model Selection, cache=TRUE}
-control_clmm_red <- clmm(limit ~ 1 + age_std + gender + edu + num_kids + (1 | location) + (1 | round), control = list(trace = 1),
-                     data = reduced_data, link = "logit")
-anova(control_clmm_red, control_clmm_full_std)
-summary(control_clmm_red)
-
-
-control_clmm_loc <- clmm(limit ~ 1 + age_std + gender + edu + num_kids + (1 | location), control = list(trace = 1),
-                     data = reduced_data, link = "logit")
-
-lrt_obs_round <- as.numeric(2*(logLik(control_clmm_red) - logLik(control_clmm_loc)))
-.5*(1 - pchisq(lrt_obs_round, 0)) + .5*(1 - pchisq(lrt_obs_round, 1))
-
-control_clm <- clm(limit ~ 1 + age_std + gender + edu + num_kids, control = list(trace = 1),
-                     data = reduced_data, link = "logit")
-lrt_obs_loc <- as.numeric(2*(logLik(control_clmm_loc) - logLik(control_clm)))
-.5*(1 - pchisq(lrt_obs_loc, 0)) + .5*(1 - pchisq(lrt_obs_loc, 1))
-
-summary(control_clm)
-nominal_test(control_clm)
-scale_test(control_clm)
-
-control_null <- clm(limit ~ 1, data = reduced_data, link = "logit")
-# Overall fit
-anova(control_null, control_clm)
-```
-
-
-```{r Bootstrap, eval=FALSE}
-set.seed(54185214)
-
-Nsim <- 1000   
-lrt_sim <- rep(NA,Nsim) 
-
-nullY <- simulate(control_clmm_loc, nsim=Nsim)
-
-for (i in 1:Nsim){  
-  null_clmm <- clmm(nullY[ , i] ~ 1 + age + gender + edu + num_kids + (1 | location),
-       data = reduced_data, link = "logit")
-  alt_clmm <- refit(control_clmm_red, nullY[, i])
-  lrt_sim[i] <- 2*(logLik(alt_clmm, REML = TRUE)-logLik(null_clmm, REML = TRUE))
-}
-
-mean(lrt_sim > lrt_obs_round)       #P-value
-ggplot(data.frame(lrt_sim), aes(x=lrt_sim)) + 
-  geom_histogram(color = "white") + 
-  geom_vline(xintercept = lrt_obs_round, color = "red") 
-```
-
-
-```{r Model Accuracy, cache=TRUE}
-control_pred <- predict(control_clm, type = "class")
-
-control_results <- reduced_data %>%
-  bind_cols(control_pred)
-
-# table(control_results$limit, control_results$fit)
-conf_mat(control_results, truth = limit, estimate = fit)
-conf_mat(control_results_log, truth = limit, estimate = fit)
-
-# Goodness of fit
-chisq.test(control_results$limit, control_results$fit)
-
-accuracy(control_results, truth = limit, estimate = fit)
-sensitivity(control_results, truth = limit, estimate = fit)
-specificity(control_results, truth = limit, estimate = fit)
-# ppv(control_results, truth = limit, estimate = fit)
-```
-
-```{r Residual Analysis}
-plot(fitted(control_clm), residuals(control_clm))
-
-control_resid <- control_results %>%
-  mutate(
-    case_id = row_number(), 
-    fit = ordered(fit, levels = c("Never", "Seldom", "Sometimes", "Often", "Always"))
-  ) %>% 
-  select(case_id, limit, fit)
-
-ggplot(control_resid, aes(x = case_id)) +
-  geom_point(aes(y = limit, color = "Actual"), alpha = 0.7) +
-  geom_point(aes(y = fit, color = "Fitted"), alpha = 0.7) +
-  scale_color_manual(values = c("Actual" = "blue", "Fitted" = "red")) +
-  labs(
-    x = "Case ID",
-    y = "Response Category",
-    title = "Actual vs. Fitted Values",
-    color = "Legend"
-  ) +
-  theme_minimal()
-```
-
-### Evan's section
-
-
-```{r}
+```{r Bivariate and Interaction, cache=TRUE}
 # Single variables, interactions plotted against limit
 
 # Age
@@ -314,7 +160,6 @@ ggplot(data = reduced_data, aes(x = num_kids, fill = limit)) +
   labs(x = "Child Count", y = "Percentage", fill = "Limit") +
   facet_wrap(~gender) +
   theme_minimal()
-
 
 # Race
 ggplot(data = reduced_data, aes(x = race, fill = limit)) +
@@ -357,7 +202,7 @@ ggplot(data = reduced_data, aes(y = nsigns_ssb, x = limit)) +
   theme_minimal()
 ```
 
-```{r}
+```{r Programatic Interaction function, cache=TRUE}
 # Plot function for interactions
 
 plot_cats <- c("limit", "gender", "race", "city", "round", "num_kids", "edu", "diet")
@@ -393,7 +238,7 @@ make_plot <- function(var1, var2){
 }
 ```
 
-```{r}
+```{r Call, cache=TRUE}
 for(i in 1:length(names(reduced_data))){
   if(i != length(reduced_data)){
     for(j in (i+1):length(reduced_data)){
@@ -404,7 +249,215 @@ for(i in 1:length(names(reduced_data))){
 ```
 
 
+## Modeling Process
+
+### Testing Different Optimization Methods
+
+For models with no random effects, best to use Newton's approximation. For models with random effects, best to use `nlminb`, which is the default.
+
+```{r Optimization Methods, cache=TRUE, eval=F}
+# No random effects
+control_clm_full <- clm(limit ~ 1 + age + gender + race + edu + caff +
+                          nsigns_ssb + num_kids + days_since_ban, 
+                   data = reduced_data, control = list(
+  maxIter = 10000, 
+  maxLineIter = 2000, 
+  maxModIter = 2000, 
+  method = "Newton", 
+  trace = 1))
+control_clm <- clm(limit ~ 1 + age + gender + race + edu + caff + 
+                     nsigns_ssb + num_kids + days_since_ban, data = reduced_data, control = list(
+  method = "ucminf",
+  stepmax = 1,
+  grad = "central",
+  maxeval = 500000,
+  gradstep = c(1e-10, 1e-12),
+  trace = 1))
+control_clm <- clm(limit ~ 1 + age + gender + race + edu + caff + 
+                     nsigns_ssb + num_kids + days_since_ban, data = reduced_data, control = list(
+  method = "nlminb",
+  eval.max = 2000,
+  iter.max = 1500,
+  abs.tol = 1e-20,
+  trace = 1))
+control_clm <- clm(limit ~ 1 + age + gender + race + edu + caff + 
+                     nsigns_ssb + num_kids + days_since_ban, data = reduced_data, control = list(
+  method = "optim",
+  tmax = 100,
+  maxit = 100000,
+  type = 1,
+  ndeps = 1e-10,
+  REPORT = 1,
+  trace = 1))
+
+## Check with alternative packages. Produced the same intercepts
+control_vglm <- vglm(limit ~ 1 + age + gender + race + edu + caff + 
+                       nsigns_ssb + num_kids + days_since_ban, 
+                     data = reduced_data, family = cumulative(parallel = TRUE))
+
+## Random effects. Omit the rest for brevity
+control_clmm_full <- clmm(limit ~ 1 + age + gender + race + edu + city + caff + 
+                            nsigns_ssb + num_kids + days_since_ban + 
+                            (1 | location) + (1 | round), 
+                          control = list(method = "nlminb",
+                                         useMatrix = T,
+                                         maxIter = 200, 
+                                         gradTol = 1e-4, 
+                                         maxLineIter = 200,
+                                         trace = 1),
+                     data = reduced_data, link = "logit")
+
+# Same intercepts
+summary(control_clm)
+summary(control_vglm)
+coef(control_vglm, matrix = T)
+
+summary(control_clmm_full)
+coef(control_clmm_full, matrix = T)
+```
 
 
+### Full Model
 
+Note that we also tested the non-standardized model. They both produced the similar conclusions. However, the non-standardized model couldn't fit properly because of the `kcal` variable. We proceeded with the standardized model for predictions.
 
+```{r Full Model, cache=TRUE}
+control_clmm_full_std <- clmm(limit ~ 1 + age_std + gender + race + edu + city + caff_std + 
+                                nsigns_ssb_std + num_kids + days_since_ban_std + kcal_std + fv_std + 
+                                (1 | location) + (1 | round),
+                          control = list(method = "nlminb",
+                                         useMatrix = T,
+                                         maxIter = 200,
+                                         gradTol = 1e-4,
+                                         maxLineIter = 200),
+                     data = reduced_data, link = "logit")
+
+summary(control_clmm_full_std)
+
+## Non-standardized model
+# control_clmm_full_non <- clmm(limit ~ 1 + age + gender + race + edu + city + caff + 
+# nsigns_ssb + num_kids + days_since_ban + kcal + fv + 
+# (1 | location) + (1 | round),
+#                           control = list(method = "nlminb",
+#                                          useMatrix = T,
+#                                          maxIter = 200,
+#                                          gradTol = 1e-4,
+#                                          maxLineIter = 200,
+#                                          trace = 1),
+#                      data = reduced_data, link = "logit")
+```
+
+### Fixed Effects
+```{r Full vs. Sig Fixed, cache=TRUE}
+control_clmm_red <- clmm(limit ~ 1 + age_std + gender + edu + num_kids + 
+                           (1 | location) + (1 | round), 
+                         data = reduced_data, link = "logit")
+anova(control_clmm_red, control_clmm_full_std)
+summary(control_clmm_red)
+```
+
+### Random Effects
+
+Note that we couldn't perform bootstrap because the `simulate` command is not implemented in `ordinal`, but the effects are fairly marginal and not significant.
+
+#### Level 3 Random Intercept
+```{r No Lv3 RE, cache=TRUE}
+control_clmm_loc <- clmm(limit ~ 1 + age_std + gender + edu + num_kids + 
+                           (1 | location),
+                         data = reduced_data, link = "logit")
+
+lrt_obs_round <- as.numeric(2*(logLik(control_clmm_red) - 
+                                 logLik(control_clmm_loc)))
+.5*(1 - pchisq(lrt_obs_round, 0)) + .5*(1 - pchisq(lrt_obs_round, 1))
+```
+
+#### Level 2 Random Intercept
+
+```{r No Lv2 RE, cache=TRUE}
+control_clm <- clm(limit ~ 1 + age_std + gender + edu + num_kids, 
+                   data = reduced_data, link = "logit")
+lrt_obs_loc <- as.numeric(2*(logLik(control_clmm_loc) - logLik(control_clm)))
+.5*(1 - pchisq(lrt_obs_loc, 0)) + .5*(1 - pchisq(lrt_obs_loc, 1))
+```
+
+### Separate slopes for each level
+
+Ordinal provides two built-in commands for testing whether we need separate slopes for predictors of each level and whether we need to scale our response by each predictors. None of them showed significance.
+```{r Separate Slopes, cache=TRUE}
+nominal_test(control_clm)
+scale_test(control_clm)
+```
+
+#### Overall fit
+
+Compared to the only intercept model.
+```{r Overall Chisq test, cache=TRUE}
+control_null <- clm(limit ~ 1, data = reduced_data, link = "logit")
+# Overall fit
+anova(control_null, control_clm)
+summary(control_clm)
+```
+
+## Model Diagnostics
+
+### Accuracy Metrics
+
+Because residual analysis are not well understood in ordinal models, we opted for accuracy metrics. Note that our model doesn't predict well.
+
+```{r Model Accuracy, cache=TRUE}
+library(tidymodels)
+library(workflows)
+# Predict response
+control_pred <- predict(control_clm, type = "class")
+
+control_results <- reduced_data %>%
+  bind_cols(control_pred)
+
+# Confusion matrix
+# table(control_results$limit, control_results$fit)
+conf_mat(control_results, truth = limit, estimate = fit)
+
+# accuracy metrics
+accuracy(control_results, truth = limit, estimate = fit)
+sensitivity(control_results, truth = limit, estimate = fit)
+specificity(control_results, truth = limit, estimate = fit)
+# ppv(control_results, truth = limit, estimate = fit)
+```
+
+```{r GOF, cache=TRUE}
+# Goodness of fit
+chisq.test(control_results$limit, control_results$fit)
+```
+
+```{r Residual Analysis, cache=TRUE}
+plot(fitted(control_clm), residuals(control_clm))
+
+control_resid <- control_results %>%
+  mutate(
+    case_id = row_number(), 
+    fit = ordered(fit, levels = c("Never", "Seldom", "Sometimes", "Often", "Always"))
+  ) %>% 
+  select(case_id, limit, fit)
+
+ggplot(control_resid, aes(x = case_id)) +
+  geom_jitter(aes(y = limit, color = "Actual"), alpha = 0.4) +
+  geom_jitter(aes(y = fit, color = "Fitted"), alpha = 0.4) +
+  scale_color_manual(values = c("Actual" = "blue", "Fitted" = "red")) +
+  labs(
+    x = "Case ID",
+    y = "Response Category",
+    title = "Actual vs. Fitted Values",
+    color = "Legend"
+  ) +
+  theme_minimal()
+```
+
+## Effects Interpretation
+
+### Confidence Intervals
+
+```{r CI, cache=TRUE}
+confint(control_clm) %>% kable(digits = 3)
+exp(confint(control_clm)) %>% kable(digits = 3)
+(100*(exp(confint(control_clm))-1)) %>% kable(digits = 3)
+```

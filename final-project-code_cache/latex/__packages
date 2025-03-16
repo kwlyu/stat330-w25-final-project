@@ -28,3 +28,5 @@ tune
 workflows
 workflowsets
 yardstick
+knitr
+rlang
