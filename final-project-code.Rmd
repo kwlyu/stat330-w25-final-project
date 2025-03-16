@@ -120,6 +120,17 @@ multi_receipt_locations <- reduced_data %>%
 reduced_data %>%
   filter(receiptid %in% multi_receipt_locations) %>%
   count(receiptid, location)
+
+## But not all stores have been surveyed three times
+multi_round_locations <- reduced_data %>%
+  group_by(location) %>% 
+  summarize(n_rounds = n_distinct(round)) %>% 
+  filter(n_rounds < 3) %>%
+  pull(location)
+
+reduced_data %>%
+  filter(location %in% multi_round_locations) %>%
+  count(location, round)
 ```
 
 ## EDA
