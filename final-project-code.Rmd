@@ -155,6 +155,7 @@ ggplot(data = reduced_data, aes(x = age , y = limit)) +
   facet_wrap(~num_kids) +
   labs(x = "age", y = "Limit")
 
+# Gender
 ggplot(data = reduced_data, aes(x = gender, fill = limit)) +
   geom_bar(position = "fill") + 
   scale_y_continuous(labels = scales::percent) + 
@@ -354,6 +355,18 @@ Note that we also tested the non-standardized model. They both produced the simi
 ```{r Full Model, cache=TRUE}
 control_clmm_full_std <- clmm(limit ~ 1 + age_std + gender + race + edu + city + caff_std + 
                                 nsigns_ssb_std + num_kids + days_since_ban_std + 
+                                caloriescal_std + fatg_std + sugarg_std +
+                                (1 | location) + (1 | round),
+                          control = list(method = "nlminb",
+                                         useMatrix = T,
+                                         maxIter = 200,
+                                         gradTol = 1e-4,
+                                         maxLineIter = 200
+                                         # , trace = 1
+                                         ),
+                     data = reduced_data, link = "logit")
+control_clmm_full_std_int <- clmm(limit ~ age_std + gender*num_kids + race + edu + city + caff_std + 
+                                nsigns_ssb_std + days_since_ban_std + 
                                 caloriescal_std + fatg_std + sugarg_std +
                                 (1 | location) + (1 | round),
                           control = list(method = "nlminb",
