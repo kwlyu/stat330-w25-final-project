@@ -38,10 +38,6 @@ full_data <- survey %>%
   full_join(grocery, relationship = "many-to-many") %>%
   full_join(recall, relationship = "many-to-many") 
 
-diet_unsweetened_cols <- as.data.frame(survey) %>%
-  select(where(~ any(str_detect(as.character(.), "diet|unsweetened"), na.rm = TRUE))) %>%
-  colnames()
-
 full_data <- full_data %>% 
   mutate(limit = ordered(q75, levels = c("Never", "Seldom", "Sometimes", "Often", "Always"))) %>% 
   mutate(age = as.numeric(q76) - mean(as.numeric(76)),
@@ -58,18 +54,21 @@ full_data <- full_data %>%
          city = q1,
          num_kids = q44,
          surveydate = dmy(surveydate)) %>%
-  mutate(days_since_ban = as.numeric(interval(as.Date("2013-03-12"), surveydate) / days(1))) %>% 
-  mutate(diet = if_else(
-    rowSums(select(., all_of(diet_unsweetened_cols)) %>% 
-              mutate(across(everything(), ~ str_detect(as.character(.), "diet|unsweetened"))), na.rm = TRUE) >= 1, 
-    1, 0
-  ))
+  mutate(days_since_ban = as.numeric(interval(as.Date("2013-03-12"), surveydate) / days(1))) 
 
+standardize <- function(x, na.rm = TRUE) {
+  (x - mean(x, na.rm = na.rm)) / 
+    sd(x, na.rm = na.rm)
+}
 
 reduced_data <- full_data %>% 
-  select(c("receiptid", "person_id", "limit","age", "gender", "race", "edu", "city", "caff", "location", "round", "nsigns_ssb", "num_kids", "diet", "surveydate", "days_since_ban")) %>%
+  mutate(age_std = standardize(as.numeric(q76))) %>%
+  select(c("receiptid", "person_id", "limit", "age", "age_std", "gender", "race", "edu", "city", "caff", "location", "round", "nsigns_ssb", "num_kids", "surveydate", "days_since_ban", "kcal", "f_total", "v_total")) %>%
   group_by(receiptid) %>% 
-  mutate(caff = mean(caff, na.rm = T)) %>% 
+  mutate(caff = mean(caff, na.rm = T),
+         f_total = mean(f_total, na.rm = T),
+         v_total = mean(v_total, na.rm = T),
+         kcal = mean(kcal, na.rm = T)) %>% 
   drop_na() %>% 
   distinct() %>% 
   mutate(receiptid = as.factor(receiptid),
@@ -84,48 +83,56 @@ reduced_data <- full_data %>%
            edu == 5 ~ "Associates Degree",
            edu == 6 ~ "College Degree",
            edu == 7 ~ "Graduate Degree"
-         ),
-         diet = if_else(diet == 0, "No", "Yes")) %>% 
-  ungroup()
+         )) %>% 
+  ungroup() %>% 
+  mutate(f_std = standardize(f_total),
+         v_std = standardize(v_total),
+         caff_std = standardize(caff),
+         nsigns_ssb_std = standardize(nsigns_ssb),
+         days_since_ban_std = standardize(days_since_ban),
+         kcal_std = standardize(kcal)
+         ) %>% 
+  mutate(fv = f_std + v_std) %>% 
+  mutate(fv_std = standardize(fv))
 
 write_csv(reduced_data, "dietControl.csv")
 
 multi_round_locations <- reduced_data %>%
   group_by(receiptid) %>% 
-  summarize(n_rounds = n_distinct(person_id)) %>% 
+  summarize(n_rounds = n_distinct(round)) %>% 
   filter(n_rounds > 1) %>%
   pull(receiptid)
 
 reduced_data %>%
-  filter(receiptid %in% multi_round_locations) %>%
-  count(receiptid, person_id)
+  filter(location %in% multi_round_locations) %>%
+  count(receiptid, location)
 ```
 
 
 ### Kunwu's section
 
 ```{r Optimization Methods, cache=TRUE, eval=T}
-control_clm_full <- clm(limit ~ 1 + age + gender + race + edu + caff + nsigns_ssb + num_kids + diet + days_since_ban, 
-                   data = full_data, control = list(
+control_clm_full <- clm(limit ~ 1 + age + gender + race + edu + caff + nsigns_ssb + num_kids + days_since_ban, 
+                   data = reduced_data, control = list(
   maxIter = 10000, 
   maxLineIter = 2000, 
   maxModIter = 2000, 
   method = "Newton", 
   trace = 1))
-control_clm <- clm(limit ~ 1 + age + gender + race + edu + caff + nsigns_ssb + num_kids + diet + days_since_ban, data = full_data, control = list(
+control_clm <- clm(limit ~ 1 + age + gender + race + edu + caff + nsigns_ssb + num_kids + days_since_ban, data = reduced_data, control = list(
   method = "ucminf",
   stepmax = 1,
   grad = "central",
   maxeval = 500000,
   gradstep = c(1e-10, 1e-12),
   trace = 1))
-control_clm <- clm(limit ~ 1 + age + gender + race + edu + caff + nsigns_ssb + num_kids + diet + days_since_ban, data = full_data, control = list(
+control_clm <- clm(limit ~ 1 + age + gender + race + edu + caff + nsigns_ssb + num_kids + days_since_ban, data = reduced_data, control = list(
   method = "nlminb",
   eval.max = 2000,
   iter.max = 1500,
   abs.tol = 1e-20,
   trace = 1))
-control_clm <- clm(limit ~ 1 + age + gender + race + edu + caff + nsigns_ssb + num_kids + diet + days_since_ban, data = full_data, control = list(
+control_clm <- clm(limit ~ 1 + age + gender + race + edu + caff + nsigns_ssb + num_kids + days_since_ban, data = reduced_data, control = list(
   method = "optim",
   tmax = 100,
   maxit = 100000,
@@ -133,9 +140,9 @@ control_clm <- clm(limit ~ 1 + age + gender + race + edu + caff + nsigns_ssb + n
   ndeps = 1e-10,
   REPORT = 1,
   trace = 1))
-control_vglm <- vglm(limit ~ 1 + age + gender + race + edu + caff + nsigns_ssb + num_kids + diet + days_since_ban, 
-                     data = full_data, family = cumulative(parallel = TRUE))
-control_clmm_full <- clmm(limit ~ 1 + age + gender + race + edu + city + caff + nsigns_ssb + num_kids + diet + days_since_ban + (1 | location) + (1 | round), 
+control_vglm <- vglm(limit ~ 1 + age + gender + race + edu + caff + nsigns_ssb + num_kids + days_since_ban, 
+                     data = reduced_data, family = cumulative(parallel = TRUE))
+control_clmm_full <- clmm(limit ~ 1 + age + gender + race + edu + city + caff + nsigns_ssb + num_kids + days_since_ban + (1 | location) + (1 | round), 
                           control = list(method = "nlminb",
                                          useMatrix = T,
                                          maxIter = 200, 
@@ -151,22 +158,48 @@ summary(control_clmm_full)
 coef(control_clmm_full, matrix = T)
 ```
 
+<<<<<<< HEAD
 ```{r Model Selection, cache=TRUE}
 # Try age:gender interaction, 
 
 control_clmm_red <- clmm(limit ~ 1 + age + gender + edu + num_kids + diet + (1 | location) + (1 | round), control = list(trace = 1),
+=======
+```{r}
+control_clmm_full_std <- clmm(limit ~ 1 + age_std + gender + race + edu + city + caff_std + nsigns_ssb_std + num_kids + days_since_ban_std + kcal_std + fv_std + (1 | location) + (1 | round), 
+                          control = list(method = "nlminb",
+                                         useMatrix = T,
+                                         maxIter = 200, 
+                                         gradTol = 1e-4, 
+                                         maxLineIter = 200,
+                                         trace = 1),
+>>>>>>> ddb042834efc108ffd3c35c98c1628f3b65f7b45
                      data = reduced_data, link = "logit")
-anova(control_clmm_red, control_clmm_full)
+control_clmm_full_non <- clmm(limit ~ 1 + age + gender + race + edu + city + caff + nsigns_ssb + num_kids + days_since_ban + kcal + fv + (1 | location) + (1 | round), 
+                          control = list(method = "nlminb",
+                                         useMatrix = T,
+                                         maxIter = 200, 
+                                         gradTol = 1e-4, 
+                                         maxLineIter = 200,
+                                         trace = 1),
+                     data = reduced_data, link = "logit")
+summary(control_clmm_full_std)
+```
+
+
+```{r Model Selection, cache=TRUE}
+control_clmm_red <- clmm(limit ~ 1 + age_std + gender + edu + num_kids + (1 | location) + (1 | round), control = list(trace = 1),
+                     data = reduced_data, link = "logit")
+anova(control_clmm_red, control_clmm_full_std)
 summary(control_clmm_red)
 
 
-control_clmm_loc <- clmm(limit ~ 1 + age + gender + edu + num_kids + diet + (1 | location), control = list(trace = 1),
+control_clmm_loc <- clmm(limit ~ 1 + age_std + gender + edu + num_kids + (1 | location), control = list(trace = 1),
                      data = reduced_data, link = "logit")
 
 lrt_obs_round <- as.numeric(2*(logLik(control_clmm_red) - logLik(control_clmm_loc)))
 .5*(1 - pchisq(lrt_obs_round, 0)) + .5*(1 - pchisq(lrt_obs_round, 1))
 
-control_clm <- clm(limit ~ 1 + age + gender + edu + num_kids + diet, control = list(trace = 1),
+control_clm <- clm(limit ~ 1 + age_std + gender + edu + num_kids, control = list(trace = 1),
                      data = reduced_data, link = "logit")
 lrt_obs_loc <- as.numeric(2*(logLik(control_clmm_loc) - logLik(control_clm)))
 .5*(1 - pchisq(lrt_obs_loc, 0)) + .5*(1 - pchisq(lrt_obs_loc, 1))
@@ -177,6 +210,7 @@ control_null <- clm(limit ~ 1, data = reduced_data, link = "logit")
 anova(control_null, control_clm)
 ```
 
+
 ```{r Bootstrap, eval=FALSE}
 set.seed(54185214)
 
@@ -186,7 +220,7 @@ lrt_sim <- rep(NA,Nsim)
 nullY <- simulate(control_clmm_loc, nsim=Nsim)
 
 for (i in 1:Nsim){  
-  null_clmm <- clmm(nullY[ , i] ~ 1 + age + gender + edu + num_kids + diet + (1 | location),
+  null_clmm <- clmm(nullY[ , i] ~ 1 + age + gender + edu + num_kids + (1 | location),
        data = reduced_data, link = "logit")
   alt_clmm <- refit(control_clmm_red, nullY[, i])
   lrt_sim[i] <- 2*(logLik(alt_clmm, REML = TRUE)-logLik(null_clmm, REML = TRUE))
@@ -202,7 +236,6 @@ ggplot(data.frame(lrt_sim), aes(x=lrt_sim)) +
 ```{r Model Accuracy, cache=TRUE}
 control_pred <- predict(control_clm, type = "class")
 control_results <- reduced_data %>%
-  select(limit) %>%
   bind_cols(predicted = control_pred)
 # table(control_results$limit, control_results$fit)
 conf_mat(control_results, truth = limit, estimate = fit)
@@ -214,6 +247,29 @@ accuracy(control_results, truth = limit, estimate = fit)
 sensitivity(control_results, truth = limit, estimate = fit)
 specificity(control_results, truth = limit, estimate = fit)
 # ppv(control_results, truth = limit, estimate = fit)
+```
+
+```{r Residual Analysis}
+plot(fitted(control_clm), residuals(control_clm))
+
+control_resid <- control_results %>%
+  mutate(
+    case_id = row_number(), 
+    fit = ordered(fit, levels = c("Never", "Seldom", "Sometimes", "Often", "Always"))
+  ) %>% 
+  select(case_id, limit, fit)
+
+ggplot(control_resid, aes(x = case_id)) +
+  geom_point(aes(y = limit, color = "Actual"), alpha = 0.7) +
+  geom_point(aes(y = fit, color = "Fitted"), alpha = 0.7) +
+  scale_color_manual(values = c("Actual" = "blue", "Fitted" = "red")) +
+  labs(
+    x = "Case ID",
+    y = "Response Category",
+    title = "Actual vs. Fitted Values",
+    color = "Legend"
+  ) +
+  theme_minimal()
 ```
 
 ### Evan's section
