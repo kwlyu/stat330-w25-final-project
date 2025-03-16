@@ -161,21 +161,9 @@ summary(control_clmm_full)
 coef(control_clmm_full, matrix = T)
 ```
 
-<<<<<<< HEAD
 ```{r Model Selection, cache=TRUE}
-# Try age:gender interaction, 
 
 control_clmm_red <- clmm(limit ~ 1 + age + gender + edu + num_kids + diet + (1 | location) + (1 | round), control = list(trace = 1),
-=======
-```{r}
-control_clmm_full_std <- clmm(limit ~ 1 + age_std + gender + race + edu + city + caff_std + nsigns_ssb_std + num_kids + days_since_ban_std + kcal_std + fv_std + (1 | location) + (1 | round), 
-                          control = list(method = "nlminb",
-                                         useMatrix = T,
-                                         maxIter = 200, 
-                                         gradTol = 1e-4, 
-                                         maxLineIter = 200,
-                                         trace = 1),
->>>>>>> ddb042834efc108ffd3c35c98c1628f3b65f7b45
                      data = reduced_data, link = "logit")
 # control_clmm_full_non <- clmm(limit ~ 1 + age + gender + race + edu + city + caff + nsigns_ssb + num_kids + days_since_ban + kcal + fv + (1 | location) + (1 | round), 
 #                           control = list(method = "nlminb",
