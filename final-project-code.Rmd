@@ -407,7 +407,7 @@ summary(control_clmm_red)
 
 Note that we couldn't perform bootstrap because the `simulate` command is not implemented in `ordinal`, but the effects are fairly marginal and not significant.
 
-#### Level 3 Random Intercept
+#### Level 2 Round Random Intercept
 ```{r No Lv3 RE, cache=TRUE}
 control_clmm_loc <- clmm(limit ~ 1 + age_std + gender + race + edu + city + 
                            num_kids +
@@ -419,7 +419,7 @@ lrt_obs_round <- as.numeric(2*(logLik(control_clmm_red) -
 .5*(1 - pchisq(lrt_obs_round, 0)) + .5*(1 - pchisq(lrt_obs_round, 1))
 ```
 
-#### Level 2 Random Intercept
+#### Level 2 Location Random Intercept
 
 ```{r No Lv2 RE, cache=TRUE}
 control_clm <- clm(limit ~ 1 + age_std + gender + race + edu + city + 
@@ -478,14 +478,14 @@ model_accuracy <- function(model = control_clm, adj = F) {
     
     # accuracy metrics
     accuracy(control_results, truth = limit, estimate = fit) -> acc
+    precision(control_results, truth = limit, estimate = fit) -> pre
     sensitivity(control_results, truth = limit, estimate = fit) -> sen
     specificity(control_results, truth = limit, estimate = fit) -> spe
-    # ppv(control_results, truth = limit, estimate = fit)
     
     # Goodness of fit
     chisq.test(control_results$limit, control_results$fit) -> gof
     
-    return(list(control_results = control_results, conf = conf, acc = acc, sen = sen, spe = spe, gof = gof))
+    return(list(control_results = control_results, conf = conf, acc = acc, pre = pre, sen = sen, spe = spe, gof = gof))
     }
   if (adj) {
     # Predict response
@@ -510,6 +510,7 @@ model_accuracy <- function(model = control_clm, adj = F) {
 }
 
 model_accuracy(control_clm_nom)
+model_accuracy(control_clm)
 
 ## Similar results under different model specifications
 control_clm_probit <- clm(limit ~ 1 + age_std + gender + race + edu + city + 
@@ -585,6 +586,9 @@ ggplot(control_resid, aes(x = case_id, y = resid)) +
 ### Confidence Intervals
 
 ```{r CI}
+summary(control_clmm_loc)$coefficients %>% 
+  bind_cols(confint(control_clmm_loc)) %>%
+  kable(digits = 2)
 confint(control_clmm_loc) %>% kable(digits = 3)
 exp(confint(control_clmm_loc)) %>% kable(digits = 3)
 (100*(exp(confint(control_clmm_loc))-1)) %>% kable(digits = 3)
